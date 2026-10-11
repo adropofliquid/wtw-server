@@ -16,6 +16,8 @@ services:
       retries: 20
 
   rembg:
+    # For `./gradlew bootRun` with real cut-outs: `docker compose up --build rembg`, then
+    # REMBG_MODE=http REMBG_URL=http://localhost:8000/rembg (README "Local development").
     # The remover lives in its own repo (whattowear/imgbg-remover). Override the path with REMBG_CONTEXT.
     build: ${REMBG_CONTEXT:-../../imgbg-remover}
     environment:

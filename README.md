@@ -18,6 +18,42 @@ psql -d postgres -c "CREATE ROLE wtw LOGIN PASSWORD 'wtw'" -c "CREATE DATABASE w
 docker compose up --build
 ```
 
+### Local development: real background removal (rembg)
+The dev default `REMBG_MODE=stub` just returns your photo as a PNG. For real cut-outs, run the Python rembg
+service (`../../imgbg-remover`, its own repo) and point the server at it. This is the recommended local path.
+
+```sh
+# A. With Docker: only the rembg service from docker-compose.yml (port 8000)
+docker compose up --build rembg
+# B. Without Docker: from the remover's own venv (verified this way, 2026-10-11)
+cd ../../imgbg-remover && venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+
+# then, in this folder
+REMBG_MODE=http REMBG_URL=http://localhost:8000/rembg ./gradlew bootRun
+curl -H 'Authorization: Bearer dev-token' -F photo=@shirt.jpg localhost:8080/images/remove-background -o cut.png
+```
+No Docker and no Python? Keep `REMBG_MODE=stub` (the default).
+
+Cut-outs come back at **300 px** until the remover reads `MAX_SIDE` (the brief wants 600 px). The server does not
+change files in `imgbg-remover/`. Developer step, once, in that repo: in `main.py`, make `resize_image` use
+`max_size = int(os.getenv("MAX_SIDE", "300"))` (add `import os`), then run it with `MAX_SIDE=600`
+(`docker-compose.yml` already sets it).
+
+### Local development: a local model instead of the Gemini stub
+The dev default `GEMINI_MODE=stub` gives canned replies. For a cheap "real feel", run a small vision model on
+your machine with any OpenAI-compatible server (Ollama shown; `mlx-vlm` serve also works) and set `GEMINI_MODE=local`.
+It is used for `/ai/attributes`, the suggestion routes and `/ai/describe-outfit`. **`/ai/generate-image` stays a
+placeholder** in local mode: it returns your photo as a PNG (no image model is wired). Never active in prod.
+
+```sh
+brew install ollama && ollama serve            # you start and stop the model; the server never does
+ollama pull qwen2.5vl:3b                       # ~3.2 GB vision model (default). Alternative: gemma3:4b (~3.4 GB)
+GEMINI_MODE=local LOCAL_MODEL_NAME=qwen2.5vl:3b ./gradlew bootRun     # LOCAL_MODEL_URL defaults to http://localhost:11434
+```
+If nothing is listening, the AI routes give 502 `UPSTREAM_FAILED` with
+`"Local model failed: nothing is listening at http://localhost:11434; start it yourself (see README)"`.
+Small local models follow the JSON prompts less reliably than Gemini; the server cleans replies the same way.
+
 Try it:
 ```sh
 curl localhost:8080/health
@@ -33,7 +69,7 @@ from `../../research/catalog-gen/batch1/` and `starter-items.json` from the old 
 |---|---|---|
 | Set by | Dockerfile (`SPRING_PROFILES_ACTIVE=prod`) | `./gradlew bootRun` default |
 | Auth | Firebase ID token | `Bearer $AUTH_DEV_TOKEN` → `$AUTH_DEV_UID`; `X-Dev-User-Id` when `AUTH_DEV_BYPASS_ENABLED=true` (dev default) |
-| Gemini, WeatherAPI, RevenueCat, FCM | real | stub (canned, no network) |
+| Gemini, WeatherAPI, RevenueCat, FCM | real | stub (canned, no network). Gemini: `GEMINI_MODE=local` for a local model |
 | Storage `STORAGE_MODE` | `s3` (default) | `local` (default) |
 | Background removal `REMBG_MODE` | `http` (default) | `stub` (default) |
 | Push job | on (`NOTIFICATIONS_ENABLED`) | off by default |
@@ -53,7 +89,10 @@ Live numbers (credits, costs, caps, pack sizes, notification copy) are **not** e
 | `GEMINI_MODEL_SUGGEST` | `gemini-2.5-flash` | Suggestions, outfit description |
 | `GEMINI_MODEL_ATTRIBUTES` | `gemini-2.5-flash-lite` | Reading a photo |
 | `GEMINI_MODEL_IMAGE` | `gemini-2.5-flash-image` | AI item image |
-| `AI_TIMEOUT_MS` | 60000 | Every Gemini call |
+| `AI_TIMEOUT_MS` | 60000 | Every Gemini call (except the image call) |
+| `AI_IMAGE_TIMEOUT_MS` | 60000 | The Gemini image call (`/ai/generate-image`). The app should wait 90 s on routes 15 and 16 (API.md). |
+| `GEMINI_MODE` | `stub` | Not prod only: `stub` or `local` (see "Local development: a local model"). Prod always uses Vertex. |
+| `LOCAL_MODEL_URL`, `LOCAL_MODEL_NAME` | `http://localhost:11434`, `qwen2.5vl:3b` | `GEMINI_MODE=local` only: OpenAI-compatible server and model |
 | `REMBG_MODE`, `REMBG_URL`, `REMBG_TIMEOUT_MS` | `http`, `http://localhost:8000/rembg`, 60000 | Background removal service |
 | `STORAGE_MODE` | `s3` | `s3` or `local` |
 | `STORAGE_ENDPOINT`, `STORAGE_REGION` | empty (= AWS), `auto` | S3-compatible endpoint (R2: `https://<account>.r2.cloudflarestorage.com`) |
@@ -151,3 +190,26 @@ server works, with 300px cut-outs (it never upscales).
 
 ## Health
 `GET /health` → `{"status":"UP"}` after a DB ping; 503 `{"status":"DOWN"}` otherwise. Public. The Docker image has a `HEALTHCHECK` too.
+
+## Remove after cutover (data copy)
+The old → new data copy runs once. After the cutover is verified, delete it with this list. Each step is one edit.
+
+Files to delete:
+- [ ] `src/main/kotlin/com/adropofliquid/wtw/service/DataCopyService.kt`
+- [ ] `src/main/kotlin/com/adropofliquid/wtw/service/DataCopyOldReader.kt`
+- [ ] `src/main/kotlin/com/adropofliquid/wtw/service/DataCopyTransforms.kt`
+- [ ] `src/main/kotlin/com/adropofliquid/wtw/service/DataCopyImages.kt`
+- [ ] `src/main/kotlin/com/adropofliquid/wtw/config/OldDataSourceConfig.kt`
+- [ ] `src/main/kotlin/com/adropofliquid/wtw/dto/DataCopyDtos.kt`
+
+Config and hooks to edit:
+- [ ] `WtwApplication.kt`: drop `"--data-copy"` from `ONE_OFF_COMMANDS`.
+- [ ] `security/SecurityConfig.kt`: drop `--data-copy` from the "web only" comment.
+- [ ] `config/WtwProperties.kt` `Old` and `application.yml` `wtw.old`: remove `db-url`, `db-user`, `db-pass`.
+      **Keep** `s3-access-key`, `s3-secret`, `s3-region`: `--seed-library` uses them for the old starter images.
+- [ ] `docker-compose.yml`: remove the `OLD_DB_URL` line (and its comment) from `api`.
+- [ ] README: remove the "Data copy (brief 7)" section, the `--data-copy` line in "Commands", the env rows
+      `OLD_DB_URL, OLD_DB_USER, OLD_DB_PASS` and `DATA_COPY_REPORT_DIR`, and this section. Keep `OLD_S3_*`.
+- [ ] `ARCHITECTURE.md` "One-off commands" and `CONTRIBUTING.md` "No raw SQL" exception: remove the data-copy mention.
+- [ ] Dokku: `dokku config:unset wtw-server OLD_DB_URL OLD_DB_USER OLD_DB_PASS DATA_COPY_REPORT_DIR`.
+- [ ] Then `./gradlew build -x test` and boot once.
