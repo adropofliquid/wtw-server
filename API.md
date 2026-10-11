@@ -100,7 +100,7 @@ Some codes add extra fields (see the table). The app should switch on `code`, ne
 | 405 | `VALIDATION` | Wrong HTTP method on a known path (`"error": "Method not allowed"`) | — |
 | 409 | `SESSION_CLOSED` | Suggestion session already completed, or it has no history to continue | — |
 | 409 | `ITEM_NOT_PUSHED` | Image upload for an item id the server has never seen | — |
-| 409 | `IDEMPOTENCY_KEY_USED` | `Idempotency-Key` reused after its request failed or its result expired (routes 15, 16) | — |
+| 409 | `IDEMPOTENCY_KEY_USED` | `Idempotency-Key` reused after its request failed or its result expired (routes 15, 16, 17) | — |
 | 413 | `TOO_LARGE` | Upload over `UPLOAD_MAX_BYTES` (10 MB), or a mirror push with more than 1000 rows | — |
 | 429 | `LIMIT_REACHED` | A daily cap was hit | `"limit": "attributes" \| "remove_bg" \| "generations"` |
 | 500 | `INTERNAL` | Anything else | — |
@@ -767,7 +767,7 @@ Photo errors (all three routes):
 
 Nothing from these routes is stored. Photos sent to Gemini are shrunk to 1024 px JPEG first.
 
-#### Optional `Idempotency-Key` header (routes 15 and 16)
+#### Optional `Idempotency-Key` header (routes 15 and 16; also route 17)
 
 Optional and backward compatible: a request without it works exactly as before.
 
@@ -989,11 +989,22 @@ What happens:
 3. Otherwise charge `cost_outfit_suggestion` (ref = session id), then ask the model. Return `SUCCESS`
    (attempt 1) or `LOW_CONFIDENCE` (attempt 1). If the model call fails (502/504), the charge is refunded.
 
+Optional header `Idempotency-Key` (backward compatible: without it, every call is a new session and a new fee).
+Same value rules and behaviour as routes 15 and 16 (see "Optional `Idempotency-Key` header" above): the key is
+the fee's ledger ref, so one key pays at most once. A retry with the same key while the first is running, or
+within 1 hour after it succeeded, gets the **same session** back (same `sessionId`, no new charge, no model
+call). After the first one failed (refunded) or its result is gone (1 hour, or a server restart), 409
+`IDEMPOTENCY_KEY_USED`; send a new key. A start that ended in 402, 429 or `INSUFFICIENT_WARDROBE` charged
+nothing, so retrying it with the same key simply runs again. Make a new key per tap; reuse it only for a retry.
+A start can take a while (up to 4 tries plus one re-ask, 60 s each), so with a key a retry after an app-side
+timeout is safe.
+
 - Response 200 `SuggestionResponse`, header `X-Credits-Balance` (balance after the session fee; for
   `INSUFFICIENT_WARDROBE`, nothing charged).
 - Errors: 400 `VALIDATION` (`"context must be one of DAILY, PLANNER, WARDROBE"`, `"wardrobe is required"`,
-  `"wardrobe[].id is required"`, `"wardrobe[].category must be one of ..."`, `"date must be yyyy-MM-dd"`),
-  402 `INSUFFICIENT_CREDITS`, 429 `LIMIT_REACHED`, 502 `UPSTREAM_FAILED`, 504 `UPSTREAM_TIMEOUT`.
+  `"wardrobe[].id is required"`, `"wardrobe[].category must be one of ..."`, `"date must be yyyy-MM-dd"`,
+  `"Idempotency-Key must be ..."`), 402 `INSUFFICIENT_CREDITS`, 409 `IDEMPOTENCY_KEY_USED`, 429 `LIMIT_REACHED`,
+  502 `UPSTREAM_FAILED`, 504 `UPSTREAM_TIMEOUT`.
 - App note: the KMP `WardrobeEntry.attributes` is non-null; the server also accepts null.
 
 #### 18. POST `/outfit/suggest/next`

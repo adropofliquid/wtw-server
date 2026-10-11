@@ -12,8 +12,12 @@ import org.springframework.web.bind.annotation.*
 class SuggestionController(private val suggestions: SuggestionService) {
 
     @PostMapping("/start")
-    fun start(@AuthenticationPrincipal uid: String, @RequestBody req: SuggestionRequest): ResponseEntity<SuggestionResponse> =
-        suggestions.start(uid, req).let { okWithCredits(it.balance, it.body) }
+    fun start(
+        @AuthenticationPrincipal uid: String,
+        @RequestBody req: SuggestionRequest,
+        @RequestHeader(IDEMPOTENCY_KEY, required = false) idempotencyKey: String?,
+    ): ResponseEntity<SuggestionResponse> =
+        suggestions.start(uid, req, idempotencyKey).let { okWithCredits(it.balance, it.body) }
 
     @PostMapping("/next")
     fun next(@AuthenticationPrincipal uid: String, @RequestBody req: NextRequest): ResponseEntity<SuggestionResponse> =

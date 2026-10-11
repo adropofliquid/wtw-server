@@ -27,7 +27,7 @@ data class Metered<T>(val balance: Int, val body: T)
  * the wardrobe comes from the request (not the mirror) and goes to the model under I1..In aliases; 4 tries on a
  * blank reply; one corrective re-ask when the reply names ids outside the wardrobe, then those ids are dropped.
  *
- * Money: one flat fee per session. start charges cost_outfit_suggestion once (ref = session id) just before
+ * Money: one flat fee per session. start charges cost_outfit_suggestion once (ref = `idem:{Idempotency-Key}`, else the session id) just before
  * the first model turn, and refunds it (own transaction) if that turn fails. An INSUFFICIENT_WARDROBE start makes
  * no model call and charges nothing. next, refine and accept charge nothing; accept's `charged` is always false. Daily generation cap = ai_suggestion rows since the user's local midnight (429 "generations").
  * Gemini is always called outside a DB transaction; rows are written after the reply, all or nothing.
@@ -45,6 +45,7 @@ class SuggestionService(
     private val profiles: UserProfileService,
     private val props: WtwProperties,
     private val json: JsonMapper,
+    private val idempotency: IdempotencyService,
     txManager: PlatformTransactionManager,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -52,7 +53,13 @@ class SuggestionService(
 
     // ---------------------------------------------------------------- routes
 
-    fun start(uid: String, req: SuggestionRequest): Metered<SuggestionResponse> {
+    /**
+     * [idempotencyKey] (optional header): with a key, the fee's ledger ref is `idem:{key}` instead of the session id,
+     * so an app retry after a timeout is never charged twice. A repeat gets the first session back (same rules as
+     * routes 15 and 16, see IdempotencyService). No key → a fresh session and a fee every call (as before).
+     */
+    fun start(uid: String, req: SuggestionRequest, idempotencyKey: String? = null): Metered<SuggestionResponse> {
+        val key = idempotency.clean(idempotencyKey)
         val context = req.context?.uppercase()?.takeIf { it in CONTEXTS }
             ?: throw ApiException.validation("context must be one of ${CONTEXTS.joinToString()}")
         val wardrobe = cleanWardrobe(req.wardrobe ?: throw ApiException.validation("wardrobe is required"), "wardrobe")
@@ -66,6 +73,15 @@ class SuggestionService(
         }
         val recentlyWorn = req.recentlyWorn.orEmpty()
 
+        return idempotency.once(uid, "outfit/suggest/start", key) { ref ->
+            startCharged(uid, req, context, wardrobe, today, targetDate, recentlyWorn, ref)
+        }
+    }
+
+    private fun startCharged(
+        uid: String, req: SuggestionRequest, context: String, wardrobe: List<WardrobeEntryDto>,
+        today: LocalDate, targetDate: LocalDate?, recentlyWorn: Map<String, String>, ref: String?,
+    ): Metered<SuggestionResponse> {
         checkGenerationCap(uid)
         val state = ledger.requireBalance(uid, config.ledger().costOutfitSuggestion)
 
@@ -99,7 +115,8 @@ class SuggestionService(
             )),
         )
         // The session fee: its own transaction, committed before the model call (CONTRIBUTING "metered action").
-        val charge = ledger.spend(uid, Reason.OUTFIT_SUGGESTION, config.ledger().costOutfitSuggestion, ref = session.id)
+        val charge = ledger.spend(uid, Reason.OUTFIT_SUGGESTION, config.ledger().costOutfitSuggestion, ref = ref ?: session.id)
+        if (!charge.charged) throw IdempotencyService.keyUsed()
         val response = try {
             val turn = converse("suggest/start", history, aliasById, wardrobe.map { it.id!! }.toSet())
             session.attemptNumber = 1

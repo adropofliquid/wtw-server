@@ -42,7 +42,7 @@ Agent-facing. Read `ARCHITECTURE.md` first. Write plainly in code comments and d
 3. Call the upstream OUTSIDE any transaction. On failure: `ledger.refund(uid, charge)` and rethrow (502/504).
 4. Return the result with `okWithCredits(state.balance, body)` (controller/Credits.kt) so the app gets `X-Credits-Balance`.
 5. Add the cost key to `LedgerResponse.costs` and tell the app side (a new `MeteredAction` in `Gates`).
-Use a stable `ref` when a repeat must not charge twice: suggestion start uses the session id; the AI image and description routes use the optional `Idempotency-Key` (`IdempotencyService`). Never call the ledger from inside your own transaction (it looks up RevenueCat first, outside its transaction).
+Use a stable `ref` when a repeat must not charge twice: suggestion start, the AI image and the description routes take the optional `Idempotency-Key` (`IdempotencyService`, ref `idem:{key}`); without one, start uses the session id. Never call the ledger from inside your own transaction (it looks up RevenueCat first, outside its transaction).
 
 ## Recipe: change a live number
 Edit `app_config` in SQL (`UPDATE app_config SET config_map = jsonb_set(config_map, '{free_weekly_credits}', '10') WHERE name = 'ledger';`). It applies within 5 minutes. No deploy.
