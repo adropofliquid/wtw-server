@@ -3,6 +3,7 @@ package com.adropofliquid.wtw.security
 import com.adropofliquid.wtw.config.WtwProperties
 import com.adropofliquid.wtw.service.UserProfileService
 import org.slf4j.LoggerFactory
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpStatus
@@ -11,8 +12,12 @@ import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 
-/** Stateless. Public: `/health`, `/webhooks/revenuecat` (own shared-secret check), `/dev-files/...` (dev storage only). */
+/**
+ * Stateless. Public: `/health`, `/webhooks/revenuecat` (own shared-secret check), `/dev-files/...` (dev storage only).
+ * Web only: one-off commands (`--seed-library`, `--data-copy`) start without a web server and need no filter chain.
+ */
 @Configuration
+@ConditionalOnWebApplication
 class SecurityConfig {
     @Bean
     fun filterChain(http: HttpSecurity, verifier: TokenVerifier, profiles: UserProfileService, props: WtwProperties): SecurityFilterChain {
