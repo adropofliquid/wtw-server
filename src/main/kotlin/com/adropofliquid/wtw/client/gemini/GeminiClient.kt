@@ -1,6 +1,7 @@
 package com.adropofliquid.wtw.client.gemini
 
 import com.adropofliquid.wtw.service.ApiException
+import com.google.genai.types.Schema
 import org.slf4j.LoggerFactory
 
 /** One turn of a model conversation. role = "system" | "user" | "assistant". */
@@ -20,8 +21,8 @@ interface GeminiClient {
     /** Text from a system prompt and a message history ("user"/"assistant"). [json] asks for a JSON reply. */
     fun chat(model: String, system: String, messages: List<ChatMessage>, json: Boolean = true): GeminiText
 
-    /** Image + prompt → JSON text. */
-    fun readImage(model: String, prompt: String, image: ByteArray, mimeType: String): GeminiText
+    /** Image + prompt → JSON text. [schema], if given, is sent as Gemini's `responseSchema`. */
+    fun readImage(model: String, prompt: String, image: ByteArray, mimeType: String, schema: Schema? = null): GeminiText
 
     /** Image + prompt → image. */
     fun editImage(model: String, prompt: String, image: ByteArray, mimeType: String): GeminiImage

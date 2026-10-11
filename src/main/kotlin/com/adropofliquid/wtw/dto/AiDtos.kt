@@ -57,6 +57,7 @@ data class RefineRequest(
 
 data class AcceptRequest(val sessionId: String? = null, val suggestionId: String? = null)
 
+/** [charged] is always false since the flat session fee (taken at start); kept so the contract does not change. */
 data class AcceptResponse(val charged: Boolean, val balance: Int)
 
 data class SuggestedOutfitDto(

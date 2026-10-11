@@ -23,7 +23,7 @@ class SuggestionController(private val suggestions: SuggestionService) {
     fun refine(@AuthenticationPrincipal uid: String, @RequestBody req: RefineRequest): ResponseEntity<SuggestionResponse> =
         suggestions.refine(uid, req).let { okWithCredits(it.balance, it.body) }
 
-    /** Charges cost_outfit_suggestion once per suggestion. {charged, balance}. */
+    /** Records the accept; charges nothing (the fee is taken at start). {charged: false, balance}. */
     @PostMapping("/accept")
     fun accept(@AuthenticationPrincipal uid: String, @RequestBody req: AcceptRequest): ResponseEntity<AcceptResponse> =
         suggestions.accept(uid, req).let { okWithCredits(it.balance, it) }

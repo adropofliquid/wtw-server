@@ -22,8 +22,11 @@ class OutfitDescriptionService(
     private val config: AppConfigService,
     private val props: WtwProperties,
     private val json: JsonMapper,
+    private val idempotency: IdempotencyService,
 ) {
-    fun describe(uid: String, req: DescribeRequest): Metered<DescribeResponse> {
+    /** [idempotencyKey] (optional header): a retry with the same key is never charged twice (see IdempotencyService). */
+    fun describe(uid: String, req: DescribeRequest, idempotencyKey: String? = null): Metered<DescribeResponse> {
+        val key = idempotency.clean(idempotencyKey)
         val items = req.items.orEmpty()
         if (items.isEmpty()) throw ApiException.validation("items is required")
         if (items.size > MAX_ITEMS) throw ApiException.validation("items has more than $MAX_ITEMS entries")
@@ -34,13 +37,18 @@ class OutfitDescriptionService(
         val occasion = req.occasion?.trim()?.ifBlank { null }?.take(200)
         val message = prompts.describeUserMessage(clean, occasion)
 
+        return idempotency.once(uid, "ai/describe-outfit", key) { ref -> describeCharged(uid, message, occasion, ref) }
+    }
+
+    private fun describeCharged(uid: String, message: String, occasion: String?, ref: String?): Metered<DescribeResponse> {
         val cost = config.ledger().costOutfitDescription
-        val charge = ledger.spend(uid, Reason.OUTFIT_DESCRIPTION, cost)
+        val charge = ledger.spend(uid, Reason.OUTFIT_DESCRIPTION, cost, ref)
+        if (!charge.charged) throw IdempotencyService.keyUsed()
         try {
             val r = gemini.chat(props.ai.modelSuggest, prompts.describeOutfit, listOf(ChatMessage("user", message)))
             GeminiCallLog.log("ai/describe-outfit", r.usage, cost)
-            val map = parseJson(r.text) ?: throw ApiException.upstreamFailed("Gemini (review reply is not JSON)")
-            val review = (map["review"] as? String)?.trim()?.ifBlank { null } ?: throw ApiException.upstreamFailed("Gemini (no review)")
+            val map = parseJson(r.text) ?: throw ApiException.upstreamFailed("Gemini", "review reply is not JSON")
+            val review = (map["review"] as? String)?.trim()?.ifBlank { null } ?: throw ApiException.upstreamFailed("Gemini", "no review")
             val occ = (map["occasion"] as? String)?.trim()?.ifBlank { null } ?: occasion ?: ""
             return Metered(charge.state.balance, DescribeResponse(review, occ))
         } catch (e: Exception) {

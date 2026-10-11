@@ -4,6 +4,8 @@ import com.adropofliquid.wtw.client.rembg.BackgroundRemovalClient
 import com.adropofliquid.wtw.client.gemini.GeminiCallLog
 import com.adropofliquid.wtw.client.gemini.GeminiClient
 import com.adropofliquid.wtw.config.WtwProperties
+import com.google.genai.types.Schema
+import com.google.genai.types.Type
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 import tools.jackson.databind.json.JsonMapper
@@ -30,26 +32,36 @@ class AiItemService(
     private val config: AppConfigService,
     private val props: WtwProperties,
     private val json: JsonMapper,
+    private val idempotency: IdempotencyService,
 ) {
     /** Route 14: the superset ItemAttributes object (camelCase) plus `filter`. */
     fun attributes(uid: String, photo: MultipartFile?): Map<String, Any?> {
         val bytes = readPhoto(photo)
         caps.hit(uid, "attributes", config.ledger().attributesDailyCap)
-        val r = gemini.readImage(props.ai.modelAttributes, prompts.attributes, forGemini(bytes), "image/jpeg")
+        val r = gemini.readImage(props.ai.modelAttributes, prompts.attributes, forGemini(bytes), "image/jpeg", ATTRIBUTES_SCHEMA)
         GeminiCallLog.log("ai/attributes", r.usage, 0)
-        val raw = parseJson(r.text) ?: throw ApiException.upstreamFailed("Gemini (attributes reply is not JSON)")
+        val raw = parseJson(r.text) ?: throw ApiException.upstreamFailed("Gemini", "attributes reply is not JSON")
         return normalize(raw)
     }
 
-    /** Route 15: a clean studio PNG of the garment. Returns the PNG and the balance after the charge. */
-    fun generateImage(uid: String, photo: MultipartFile?): Metered<ByteArray> {
+    /**
+     * Route 15: a clean studio PNG of the garment. Returns the PNG and the balance after the charge.
+     * [idempotencyKey] (optional header): a retry with the same key is never charged twice (see IdempotencyService).
+     */
+    fun generateImage(uid: String, photo: MultipartFile?, idempotencyKey: String? = null): Metered<ByteArray> {
+        val key = idempotency.clean(idempotencyKey)
         val bytes = readPhoto(photo)
+        return idempotency.once(uid, "ai/generate-image", key) { ref -> generateImageCharged(uid, bytes, ref) }
+    }
+
+    private fun generateImageCharged(uid: String, bytes: ByteArray, ref: String?): Metered<ByteArray> {
         val cost = config.ledger().costAiImage
-        val charge = ledger.spend(uid, Reason.AI_IMAGE, cost)
+        val charge = ledger.spend(uid, Reason.AI_IMAGE, cost, ref)
+        if (!charge.charged) throw IdempotencyService.keyUsed()
         try {
             val r = gemini.editImage(props.ai.modelImage, prompts.generateImage, forGemini(bytes), "image/jpeg")
             GeminiCallLog.log("ai/generate-image", r.usage, cost)
-            val png = runCatching { images.toPng(r.bytes) }.getOrElse { throw ApiException.upstreamFailed("Gemini (image unreadable)", it) }
+            val png = runCatching { images.toPng(r.bytes) }.getOrElse { throw ApiException.upstreamFailed("Gemini", "image unreadable", it) }
             return Metered(charge.state.balance, png)
         } catch (e: Exception) {
             ledger.refund(uid, charge)
@@ -173,5 +185,42 @@ class AiItemService(
         val ZONES = listOf("chest", "arm", "leg", "back", "midriff", "shoulder")
         val DEFAULT_NAME = mapOf("tops" to "Top", "bottoms" to "Bottoms", "outerwear" to "Jacket", "shoes" to "Shoes", "accessories" to "Accessory")
         val DEFAULT_LAYERING = mapOf("tops" to "base", "bottoms" to "base", "outerwear" to "outerwear", "shoes" to "standalone", "accessories" to "standalone")
+        val CATEGORY_NAMES = listOf("tops", "bottoms", "outerwear", "shoes", "accessories")
+
+        /**
+         * Gemini `responseSchema` for /ai/attributes: the superset object (same keys and lists as [normalize]).
+         * It cuts "not JSON" replies; [normalize] still cleans every reply as a safety net.
+         */
+        val ATTRIBUTES_SCHEMA: Schema = run {
+            fun str() = Schema.builder().type(Type.Known.STRING).build()
+            fun oneOf(values: List<String>, nullable: Boolean = false) =
+                Schema.builder().type(Type.Known.STRING).enum_(values).apply { if (nullable) nullable(true) }.build()
+            fun listOf(item: Schema) = Schema.builder().type(Type.Known.ARRAY).items(item).build()
+            fun bool() = Schema.builder().type(Type.Known.BOOLEAN).build()
+            val props = linkedMapOf(
+                "name" to str(),
+                "category" to oneOf(CATEGORY_NAMES),
+                "description" to str(),
+                "formality" to oneOf(FORMALITY),
+                "polish" to oneOf(POLISH),
+                "fitShape" to oneOf(FIT),
+                "layeringRole" to oneOf(LAYERING),
+                "colors" to listOf(str()),
+                "season" to oneOf(SEASONS),
+                "tags" to listOf(str()),
+                "silhouetteRole" to oneOf(SILHOUETTE, nullable = true),
+                "statementLevel" to oneOf(STATEMENT, nullable = true),
+                "comfortCost" to oneOf(COMFORT_COST, nullable = true),
+                "skinCoverageOverall" to oneOf(COVERAGE, nullable = true),
+                "colorStory" to listOf(oneOf(COLOR_STORY)),
+                "fabricHand" to listOf(oneOf(FABRIC_HAND)),
+                "skinCoverageZones" to listOf(oneOf(ZONES)),
+                "filter" to Schema.builder().type(Type.Known.OBJECT)
+                    .properties(mapOf("singleGarment" to bool(), "personPresent" to bool()))
+                    .required("singleGarment", "personPresent").build(),
+            )
+            Schema.builder().type(Type.Known.OBJECT).properties(props).required(props.keys.toList())
+                .propertyOrdering(props.keys.toList()).build()
+        }
     }
 }

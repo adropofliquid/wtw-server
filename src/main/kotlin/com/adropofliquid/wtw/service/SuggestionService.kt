@@ -27,8 +27,9 @@ data class Metered<T>(val balance: Int, val body: T)
  * the wardrobe comes from the request (not the mirror) and goes to the model under I1..In aliases; 4 tries on a
  * blank reply; one corrective re-ask when the reply names ids outside the wardrobe, then those ids are dropped.
  *
- * Money: start needs balance ≥ cost_outfit_suggestion (402) but charges nothing; accept charges it once
- * (ref = suggestion id). Daily generation cap = ai_suggestion rows since the user's local midnight (429 "generations").
+ * Money: one flat fee per session. start charges cost_outfit_suggestion once (ref = session id) just before
+ * the first model turn, and refunds it (own transaction) if that turn fails. An INSUFFICIENT_WARDROBE start makes
+ * no model call and charges nothing. next, refine and accept charge nothing; accept's `charged` is always false. Daily generation cap = ai_suggestion rows since the user's local midnight (429 "generations").
  * Gemini is always called outside a DB transaction; rows are written after the reply, all or nothing.
  */
 @Service
@@ -97,12 +98,18 @@ class SuggestionService(
                 session.style, session.note, recentlyWorn, stylistNotes,
             )),
         )
-        val turn = converse("suggest/start", history, aliasById, wardrobe.map { it.id!! }.toSet())
-
-        session.attemptNumber = 1
-        session.conversationHistory = turn.history.map { mapOf("role" to it.role, "content" to it.content) }
-        val response = tx.execute { persist(session, turn) }!!
-        return Metered(state.balance, response)
+        // The session fee: its own transaction, committed before the model call (CONTRIBUTING "metered action").
+        val charge = ledger.spend(uid, Reason.OUTFIT_SUGGESTION, config.ledger().costOutfitSuggestion, ref = session.id)
+        val response = try {
+            val turn = converse("suggest/start", history, aliasById, wardrobe.map { it.id!! }.toSet())
+            session.attemptNumber = 1
+            session.conversationHistory = turn.history.map { mapOf("role" to it.role, "content" to it.content) }
+            tx.execute { persist(session, turn) }!!
+        } catch (e: Exception) {
+            ledger.refund(uid, charge)
+            throw e
+        }
+        return Metered(charge.state.balance, response)
     }
 
     fun next(uid: String, req: NextRequest): Metered<SuggestionResponse> {
@@ -181,16 +188,15 @@ class SuggestionService(
         return Metered(ledger.read(uid).balance, response)
     }
 
-    /** Charges cost_outfit_suggestion once per suggestion (ref = suggestion id); a repeat returns charged=false. */
+    /** Records the accept (idempotent). Charges nothing: the fee was taken at start. `charged` is always false. */
     fun accept(uid: String, req: AcceptRequest): AcceptResponse {
         val sessionId = req.sessionId?.ifBlank { null } ?: throw ApiException.validation("sessionId is required")
         val suggestionId = req.suggestionId?.ifBlank { null } ?: throw ApiException.validation("suggestionId is required")
-        val response = tx.execute {
+        tx.execute {
             val session = sessions.findByIdAndUserId(sessionId, uid) ?: throw ApiException.notFound("Session not found")
             val suggestion = suggestions.findByIdAndSessionIdAndUserId(suggestionId, sessionId, uid)
                 ?: throw ApiException.notFound("Suggestion not found in this session")
             if (session.status == COMPLETED && session.acceptedSuggestionId != suggestionId) throw sessionClosed()
-            val charge = ledger.spend(uid, Reason.OUTFIT_SUGGESTION, config.ledger().costOutfitSuggestion, ref = suggestionId)
             val now = Instant.now()
             if (session.status != COMPLETED) {
                 session.status = COMPLETED
@@ -205,10 +211,9 @@ class SuggestionService(
                 suggestion.updatedAt = now
                 suggestions.save(suggestion)
             }
-            AcceptResponse(charge.charged, charge.state.balance)
-        }!!
+        }
         notes.evict(uid)
-        return response
+        return AcceptResponse(charged = false, balance = ledger.read(uid).balance)
     }
 
     // ---------------------------------------------------------------- model turn
@@ -220,7 +225,7 @@ class SuggestionService(
 
     /**
      * One model turn: call, parse, translate aliases, validate ids (one corrective re-ask, then strip).
-     * Unparseable reply or an outfit with no valid item → 502 UPSTREAM_FAILED (nothing stored, nothing charged).
+     * Unparseable reply or an outfit with no valid item → 502 UPSTREAM_FAILED (nothing stored; start refunds its fee).
      */
     private fun converse(route: String, history: List<ChatMessage>, aliasById: Map<String, String>, wardrobeIds: Set<String>): Turn {
         val aliasToId = aliasById.entries.associate { (id, alias) -> alias to id }
@@ -239,7 +244,7 @@ class SuggestionService(
                 }
                 if (parsed is OutfitReply) parsed = parsed.copy(ids = parsed.ids.filter { it in wardrobeIds })
             }
-            if (parsed is OutfitReply && parsed.ids.isEmpty()) throw ApiException.upstreamFailed("Gemini (outfit with no valid items)")
+            if (parsed is OutfitReply && parsed.ids.isEmpty()) throw ApiException.upstreamFailed("Gemini", "outfit with no valid items")
         }
         return Turn(parsed, current)
     }
@@ -261,12 +266,12 @@ class SuggestionService(
             if (attempt < 3) Thread.sleep(delay)
             delay *= 2
         }
-        throw ApiException.upstreamFailed("Gemini (blank reply)")
+        throw ApiException.upstreamFailed("Gemini", "blank reply")
     }
 
     /** Shape 1 `{"outfit": {...}}` or Shape 2 `{"lowConfidence": true, ...}` (old SessionJsonUtils). */
     private fun parse(text: String, aliasToId: Map<String, String>): Parsed {
-        val map = parseJson(text) ?: throw ApiException.upstreamFailed("Gemini (reply is not JSON)")
+        val map = parseJson(text) ?: throw ApiException.upstreamFailed("Gemini", "reply is not JSON")
         if (map["lowConfidence"] == true) {
             val reason = (map["reason"] as? String)?.trim()?.ifBlank { null }
                 ?: "I'm not confident I can put something together that honours what you asked for."
@@ -274,7 +279,7 @@ class SuggestionService(
             return Refusal(reason, missing)
         }
         @Suppress("UNCHECKED_CAST")
-        val outfit = map["outfit"] as? Map<String, Any?> ?: throw ApiException.upstreamFailed("Gemini (no outfit in reply)")
+        val outfit = map["outfit"] as? Map<String, Any?> ?: throw ApiException.upstreamFailed("Gemini", "no outfit in reply")
         val bySlot = outfit.filterKeys { it != "review" }.mapNotNull { (k, v) ->
             (v as? String)?.trim()?.ifBlank { null }?.let { k.lowercase() to (aliasToId[it] ?: it) }
         }

@@ -27,6 +27,9 @@ open class ApiException(
         )
         fun upstreamFailed(upstream: String, cause: Throwable? = null) =
             ApiException(HttpStatus.BAD_GATEWAY, "UPSTREAM_FAILED", "$upstream failed", cause = cause)
+        /** Same 502, with what went wrong: "Gemini failed: attributes reply is not JSON". */
+        fun upstreamFailed(upstream: String, detail: String, cause: Throwable? = null) =
+            ApiException(HttpStatus.BAD_GATEWAY, "UPSTREAM_FAILED", "$upstream failed: $detail", cause = cause)
         fun upstreamTimeout(upstream: String, cause: Throwable? = null) =
             ApiException(HttpStatus.GATEWAY_TIMEOUT, "UPSTREAM_TIMEOUT", "$upstream timed out", cause = cause)
     }

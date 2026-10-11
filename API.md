@@ -100,6 +100,7 @@ Some codes add extra fields (see the table). The app should switch on `code`, ne
 | 405 | `VALIDATION` | Wrong HTTP method on a known path (`"error": "Method not allowed"`) | — |
 | 409 | `SESSION_CLOSED` | Suggestion session already completed, or it has no history to continue | — |
 | 409 | `ITEM_NOT_PUSHED` | Image upload for an item id the server has never seen | — |
+| 409 | `IDEMPOTENCY_KEY_USED` | `Idempotency-Key` reused after its request failed or its result expired (routes 15, 16) | — |
 | 413 | `TOO_LARGE` | Upload over `UPLOAD_MAX_BYTES` (10 MB), or a mirror push with more than 1000 rows | — |
 | 429 | `LIMIT_REACHED` | A daily cap was hit | `"limit": "attributes" \| "remove_bg" \| "generations"` |
 | 500 | `INTERNAL` | Anything else | — |
@@ -137,7 +138,7 @@ can change without a deploy (applied within 5 minutes). Today's values:
 
 | Key | Value | Used by |
 |---|---|---|
-| `cost_outfit_suggestion` | 1 | `/outfit/suggest/accept` (and the balance check in `/start`) |
+| `cost_outfit_suggestion` | 1 | `/outfit/suggest/start`, once per session |
 | `cost_ai_image` | 2 | `/ai/generate-image` |
 | `cost_outfit_description` | 1 | `/ai/describe-outfit` |
 | `free_weekly_credits` / `premium_weekly_credits` | 7 / 100 | ledger |
@@ -766,6 +767,26 @@ Photo errors (all three routes):
 
 Nothing from these routes is stored. Photos sent to Gemini are shrunk to 1024 px JPEG first.
 
+#### Optional `Idempotency-Key` header (routes 15 and 16)
+
+Optional and backward compatible: a request without it works exactly as before.
+
+```
+Idempotency-Key: 3f1c9a2e-6b1d-4d8e-9a57-0c2f4b8e1d11
+```
+
+- Value: 1–64 characters of `A-Z a-z 0-9 - _ . :` (a UUID is ideal), else 400 `VALIDATION`.
+  Make a new key per user action, and send the **same** key when you retry that action.
+- The key is the charge's ledger ref, so one key is charged **at most once** per route.
+- A retry while the first request is still running waits for it and gets the same response.
+  A retry after it succeeded (within 1 hour) gets the same response again, with no new charge and no new call.
+- A retry after the first request **failed** (it was refunded), or after the stored result is gone (1 hour, or a
+  server restart), gives 409 `IDEMPOTENCY_KEY_USED`. Send a new key to try again.
+
+**Timeouts.** The server gives Gemini up to 60 s on these routes (`AI_IMAGE_TIMEOUT_MS` for the image call,
+`AI_TIMEOUT_MS` for the review). Set the app's HTTP timeout for routes 15 and 16 to **90 s**, so the app does not
+give up before the server has answered. With an `Idempotency-Key`, a retry after an app-side timeout is still safe.
+
 ### 14. POST `/ai/attributes`
 
 Reads a photo and returns the superset attributes object plus `filter`.
@@ -867,8 +888,10 @@ One outfit at a time. The app starts a session, asks for the next one or a refin
 
 - The wardrobe comes from the request, not from the mirror. Returned `itemIds` are always ids from the sent
   wardrobe.
-- Money: **start, next and refine charge nothing.** Accept charges `cost_outfit_suggestion` (1) once per
-  suggestion. Start needs a balance of at least that cost.
+- Money: **one flat fee per session.** Start charges `cost_outfit_suggestion` (1) once (ledger reason
+  `outfit_suggestion`, ref = the session id). If the first model turn fails, the fee is refunded
+  (reason `refund_failed_call`). An `INSUFFICIENT_WARDROBE` start makes no model call and charges nothing.
+  **next, refine and accept charge nothing.** (Changed 2026-10-11: the fee used to be charged at accept.)
 - Daily generation cap: every generated suggestion counts. Limit is `free_daily_generations` (20) or
   `premium_daily_generations` (200), counted from midnight in the profile's timezone (UTC if unset).
   At the cap, start / next / refine give 429 `LIMIT_REACHED`, `"limit": "generations"`.
@@ -963,9 +986,11 @@ What happens:
 1. Validate. Check the daily generation cap (429). Check balance ≥ `cost_outfit_suggestion` (402).
 2. If the wardrobe has no top, or no bottom (a dress, gown, jumpsuit, playsuit, romper, boilersuit or overalls
    in tops counts as both), return `INSUFFICIENT_WARDROBE` with `attempt: 0`. No model call. Shoes are optional.
-3. Otherwise ask the model. Return `SUCCESS` (attempt 1) or `LOW_CONFIDENCE` (attempt 1).
+3. Otherwise charge `cost_outfit_suggestion` (ref = session id), then ask the model. Return `SUCCESS`
+   (attempt 1) or `LOW_CONFIDENCE` (attempt 1). If the model call fails (502/504), the charge is refunded.
 
-- Response 200 `SuggestionResponse`, header `X-Credits-Balance` (nothing charged).
+- Response 200 `SuggestionResponse`, header `X-Credits-Balance` (balance after the session fee; for
+  `INSUFFICIENT_WARDROBE`, nothing charged).
 - Errors: 400 `VALIDATION` (`"context must be one of DAILY, PLANNER, WARDROBE"`, `"wardrobe is required"`,
   `"wardrobe[].id is required"`, `"wardrobe[].category must be one of ..."`, `"date must be yyyy-MM-dd"`),
   402 `INSUFFICIENT_CREDITS`, 429 `LIMIT_REACHED`, 502 `UPSTREAM_FAILED`, 504 `UPSTREAM_TIMEOUT`.
@@ -1026,20 +1051,21 @@ Request:
 
 Both fields required.
 
-- Charges `cost_outfit_suggestion` (1) once per suggestion. Marks the suggestion accepted and the session
+- Charges nothing (the session fee was taken at start). Marks the suggestion accepted and the session
   `COMPLETED`.
-- Accepting the **same** suggestion again is safe: 200 with `"charged": false`, no new charge.
+- Accepting the **same** suggestion again is safe: 200, nothing changes.
 - Response 200, header `X-Credits-Balance`:
 
 ```json
-{"charged": true, "balance": 1}
+{"charged": false, "balance": 1}
 ```
 
+- `charged` is **always `false`** now. The field stays so the shape does not change; the app can ignore it.
 - Errors: 400 `VALIDATION` (missing field), 404 `NOT_FOUND` (session missing or not the caller's; or
   `"Suggestion not found in this session"`), 409 `SESSION_CLOSED` (session already completed with a
-  **different** suggestion), 402 `INSUFFICIENT_CREDITS`.
+  **different** suggestion).
 - App note: the server does not create the outfit. The app saves it locally and pushes it with the mirror.
-  Maps to `MeteredAction.OUTFIT_SUGGESTION`.
+  `MeteredAction.OUTFIT_SUGGESTION` is now spent at start (once per session), not here.
 
 ---
 
@@ -1290,8 +1316,8 @@ The code is the source of truth. These are the places where it differs from, or 
 2. **`INSUFFICIENT_WARDROBE` sessions cannot be continued.** next / refine on such a session give
    409 `SESSION_CLOSED` (`"This session has no history to continue; start a new one"`). Not in the brief.
 3. **Refine resets `attempt` to 1.** Not in the brief.
-4. **Accept can give 402.** The brief only lists 402 for start. Accept charges, so a short balance gives
-   402 `INSUFFICIENT_CREDITS`. next and refine never give 402.
+4. **Flat fee per session.** Start charges `cost_outfit_suggestion` once per session (refunded if the first
+   model turn fails). Accept, next and refine charge nothing and never give 402.
 5. **The generation cap is checked before `EXHAUSTED`.** At the daily cap, next gives 429 even when it would
    have returned `EXHAUSTED`.
 6. **Webhook de-duplication.** Brief: if `event.id` already exists, return 200 and stop. Code: stops only if the

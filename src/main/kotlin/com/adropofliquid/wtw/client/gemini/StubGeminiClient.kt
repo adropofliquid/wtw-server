@@ -1,12 +1,14 @@
 package com.adropofliquid.wtw.client.gemini
 
 import com.adropofliquid.wtw.service.ImageProcessor
+import com.google.genai.types.Schema
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Component
 import tools.jackson.databind.json.JsonMapper
 
 /**
- * Not prod: no network, canned but VALID results, so the whole pipeline (aliases, parsing, ledger) runs.
+ * Not prod, GEMINI_MODE=stub (the default): no network, canned but VALID results, so the whole pipeline (aliases, parsing, ledger) runs.
  * - chat: a session conversation gets a Shape-1 outfit picked from the wardrobe JSON in the first user message
  *   (one top, one bottom, shoes if any; rotates each turn); anything else gets a {review, occasion} reply.
  * - readImage: a fixed superset object; name/category depend on the image size, so it is deterministic.
@@ -14,6 +16,7 @@ import tools.jackson.databind.json.JsonMapper
  */
 @Component
 @Profile("!prod")
+@ConditionalOnProperty(name = ["wtw.ai.mode"], havingValue = "stub", matchIfMissing = true)
 class StubGeminiClient(private val json: JsonMapper, private val images: ImageProcessor) : GeminiClient {
     private fun usage(model: String) = GeminiUsage(model, 0, 0, 0)
 
@@ -51,7 +54,7 @@ class StubGeminiClient(private val json: JsonMapper, private val images: ImagePr
         return json.writeValueAsString(mapOf("outfit" to outfit))
     }
 
-    override fun readImage(model: String, prompt: String, image: ByteArray, mimeType: String): GeminiText {
+    override fun readImage(model: String, prompt: String, image: ByteArray, mimeType: String, schema: Schema?): GeminiText {
         val img = images.decode(image)
         val i = (img.width + img.height) % CATEGORIES.size
         val (category, name, layering) = CATEGORIES[i]

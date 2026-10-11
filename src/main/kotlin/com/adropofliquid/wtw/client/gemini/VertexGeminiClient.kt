@@ -8,6 +8,7 @@ import com.google.genai.types.GenerateContentConfig
 import com.google.genai.types.GenerateContentResponse
 import com.google.genai.types.HttpOptions
 import com.google.genai.types.Part
+import com.google.genai.types.Schema
 import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Component
 import java.io.InterruptedIOException
@@ -40,18 +41,21 @@ class VertexGeminiClient(private val props: WtwProperties) : GeminiClient {
         return call(model) { client.models.generateContent(model, contents, config) }.let { (r, u) -> GeminiText(r.text() ?: "", u) }
     }
 
-    override fun readImage(model: String, prompt: String, image: ByteArray, mimeType: String): GeminiText {
+    override fun readImage(model: String, prompt: String, image: ByteArray, mimeType: String, schema: Schema?): GeminiText {
         val content = Content.builder().role("user").parts(Part.fromBytes(image, mimeType), Part.fromText(prompt)).build()
-        val config = GenerateContentConfig.builder().responseMimeType("application/json").build()
+        val config = GenerateContentConfig.builder().responseMimeType("application/json")
+            .apply { if (schema != null) responseSchema(schema) }.build()
         return call(model) { client.models.generateContent(model, content, config) }.let { (r, u) -> GeminiText(r.text() ?: "", u) }
     }
 
     override fun editImage(model: String, prompt: String, image: ByteArray, mimeType: String): GeminiImage {
         val content = Content.builder().role("user").parts(Part.fromBytes(image, mimeType), Part.fromText(prompt)).build()
-        val config = GenerateContentConfig.builder().responseModalities("TEXT", "IMAGE").build()
+        // Its own timeout (AI_IMAGE_TIMEOUT_MS), set on this request only.
+        val config = GenerateContentConfig.builder().responseModalities("TEXT", "IMAGE")
+            .httpOptions(HttpOptions.builder().timeout(props.ai.imageTimeoutMs.toInt()).build()).build()
         val (r, u) = call(model) { client.models.generateContent(model, content, config) }
         val blob = r.parts()?.firstNotNullOfOrNull { p -> p.inlineData().orElse(null)?.takeIf { it.data().isPresent } }
-            ?: throw ApiException.upstreamFailed("Gemini (no image in reply)")
+            ?: throw ApiException.upstreamFailed("Gemini", "no image in reply")
         return GeminiImage(blob.data().get(), blob.mimeType().orElse("image/png"), u)
     }
 
