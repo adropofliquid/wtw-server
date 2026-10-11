@@ -1,0 +1,14 @@
+Recreate the clothing item in the attached photo as a clean studio product image.
+
+Keep the item exactly as it is: the same garment type, colours, pattern, print, logos, text, material, texture, stitching, buttons, zips, proportions and wear. Do not redesign, restyle, recolour or "improve" it. Do not add logos or text that are not on the original.
+
+Style: professional e-commerce product photo, the whole item fully in frame and centred with clear empty space on all sides, on a plain light grey seamless studio background, soft even lighting, sharp focus, realistic material texture.
+
+Pose by type:
+- Tops, bottoms, dresses and outerwear: front view, laid flat and neatly smoothed, sleeves or legs relaxed and straight, jackets and coats closed.
+- Shoes: a single pair, three-quarter side view, standing side by side.
+- Bags, hats and other accessories: front view, standing upright.
+
+Show only this one item. No person, no body parts, no mannequin, no hanger, no other clothing, no props, no shadows from other objects, no added text, no watermark, no border.
+
+If the photo shows more than one item, use the most prominent one.

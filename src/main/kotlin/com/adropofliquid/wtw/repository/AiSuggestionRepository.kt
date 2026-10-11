@@ -9,6 +9,10 @@ interface AiSuggestionRepository : JpaRepository<AiSuggestion, String> {
     fun countByUserIdAndCreatedAtAfter(userId: String, since: Instant): Long
     fun findByIdAndSessionId(id: String, sessionId: String): AiSuggestion?
     fun findBySessionIdOrderByAttemptNumberAsc(sessionId: String): List<AiSuggestion>
+    /** Next: the session's latest suggestion (the one the user is rejecting). */
+    fun findFirstBySessionIdOrderByCreatedAtDesc(sessionId: String): AiSuggestion?
+    /** Accept: the suggestion must be in that session and the caller's. */
+    fun findByIdAndSessionIdAndUserId(id: String, sessionId: String, userId: String): AiSuggestion?
     /** Pull: suggestion history changed after `since`. */
     fun findByUserIdAndUpdatedAtAfter(userId: String, since: Instant): List<AiSuggestion>
     /** Stylist notes: recent history. */
