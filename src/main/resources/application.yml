@@ -1,0 +1,95 @@
+# Fixed settings (brief 5.1). Everything that changes per environment is an env var below.
+spring:
+  application.name: wtw-server
+  threads.virtual.enabled: true
+  main.banner-mode: off
+  jpa:
+    open-in-view: false
+    hibernate.ddl-auto: validate
+    properties.hibernate.jdbc.time_zone: UTC
+  flyway.enabled: true
+  servlet.multipart:
+    max-file-size: ${UPLOAD_MAX_BYTES:10485760}
+    max-request-size: ${UPLOAD_MAX_BYTES:10485760}
+  jackson:
+    default-property-inclusion: always
+
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+  error.whitelabel.enabled: false
+
+management:
+  endpoints.web:
+    base-path: /
+    path-mapping.health: health
+    exposure.include: health
+  endpoint.health:
+    show-details: never
+    probes.enabled: false
+
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
+    org.hibernate.orm.deprecation: WARN
+
+wtw:
+  database-url: ${DATABASE_URL:postgres://wtw:wtw@localhost:5432/wtw}
+  db-pool-size: ${DB_POOL_SIZE:10}
+  auth:
+    dev-bypass-enabled: ${AUTH_DEV_BYPASS_ENABLED:false}
+    firebase-credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
+    dev-token: ${AUTH_DEV_TOKEN:dev-token}
+    dev-uid: ${AUTH_DEV_UID:dev-user}
+  ai:
+    vertex-project-id: ${VERTEX_PROJECT_ID:}
+    vertex-location: ${VERTEX_LOCATION:us-central1}
+    model-suggest: ${GEMINI_MODEL_SUGGEST:gemini-2.5-flash}
+    model-attributes: ${GEMINI_MODEL_ATTRIBUTES:gemini-2.5-flash-lite}
+    model-image: ${GEMINI_MODEL_IMAGE:gemini-2.5-flash-image}
+    timeout-ms: ${AI_TIMEOUT_MS:60000}
+  rembg:
+    url: ${REMBG_URL:http://localhost:8000/rembg}
+    timeout-ms: ${REMBG_TIMEOUT_MS:60000}
+  storage:
+    endpoint: ${STORAGE_ENDPOINT:}
+    region: ${STORAGE_REGION:auto}
+    access-key: ${STORAGE_ACCESS_KEY:}
+    secret-key: ${STORAGE_SECRET_KEY:}
+    bucket-user: ${STORAGE_BUCKET_USER:wtw-user}
+    bucket-library: ${STORAGE_BUCKET_LIBRARY:wtw-library}
+    library-public-url: ${STORAGE_LIBRARY_PUBLIC_URL:}
+    presign-ttl: ${STORAGE_PRESIGN_TTL:7d}
+    # Dev only: local-filesystem storage root and the base URL its files are served from.
+    local-dir: ${STORAGE_LOCAL_DIR:.local-storage}
+    local-base-url: ${STORAGE_LOCAL_BASE_URL:http://localhost:${PORT:8080}}
+  image:
+    max-side: ${IMAGE_MAX_SIDE:600}
+    webp-quality: ${IMAGE_WEBP_QUALITY:80}
+    upload-max-bytes: ${UPLOAD_MAX_BYTES:10485760}
+  revenuecat:
+    api-key: ${RC_API_KEY:}
+    project-id: ${RC_PROJECT_ID:}
+    entitlement-id: ${RC_ENTITLEMENT_ID:}
+    entitlement-identifier: ${RC_ENTITLEMENT_IDENTIFIER:Pro}
+    webhook-auth: ${RC_WEBHOOK_AUTH:}
+    cache-ttl: ${RC_CACHE_TTL:15m}
+    # Dev only: uids the stub treats as premium (comma-separated).
+    dev-premium-uids: ${RC_DEV_PREMIUM_UIDS:}
+  weather:
+    api-key: ${WEATHER_API_KEY:}
+    max-days: ${WEATHER_MAX_DAYS:14}
+    cache-ttl: ${WEATHER_CACHE_TTL:30m}
+  mirror:
+    max-rows-per-push: ${MIRROR_MAX_ROWS_PER_PUSH:1000}
+  notifications:
+    enabled: ${NOTIFICATIONS_ENABLED:true}
+  library:
+    seed-dir: ${LIBRARY_SEED_DIR:}
+  old:
+    db-url: ${OLD_DB_URL:}
+    db-user: ${OLD_DB_USER:}
+    db-pass: ${OLD_DB_PASS:}
+    s3-access-key: ${OLD_S3_ACCESS_KEY:}
+    s3-secret: ${OLD_S3_SECRET:}
+    s3-region: ${OLD_S3_REGION:eu-west-2}

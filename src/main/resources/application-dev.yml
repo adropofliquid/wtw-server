@@ -1,0 +1,7 @@
+# Local development: stub Gemini / WeatherAPI / RevenueCat / FCM / rembg, local-filesystem storage,
+# dev token auth. Never calls a paid API. See README "Local run".
+wtw:
+  auth:
+    dev-bypass-enabled: ${AUTH_DEV_BYPASS_ENABLED:true}
+  notifications:
+    enabled: ${NOTIFICATIONS_ENABLED:false}
