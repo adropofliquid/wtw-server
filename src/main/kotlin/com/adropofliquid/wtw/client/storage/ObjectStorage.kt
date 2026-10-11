@@ -1,4 +1,4 @@
-package com.adropofliquid.wtw.client
+package com.adropofliquid.wtw.client.storage
 
 /** The two buckets (brief 5.4). USER is private (presigned GETs); LIBRARY is public read. */
 enum class Bucket { USER, LIBRARY }

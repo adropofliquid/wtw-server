@@ -1,8 +1,8 @@
 package com.adropofliquid.wtw.service
 
-import com.adropofliquid.wtw.client.Bucket
-import com.adropofliquid.wtw.client.ObjectStorage
-import com.adropofliquid.wtw.client.StoredObject
+import com.adropofliquid.wtw.client.storage.Bucket
+import com.adropofliquid.wtw.client.storage.ObjectStorage
+import com.adropofliquid.wtw.client.storage.StoredObject
 import com.adropofliquid.wtw.domain.LibraryItem
 import com.adropofliquid.wtw.dto.LibraryItemResponse
 import com.adropofliquid.wtw.dto.StarterItemResponse

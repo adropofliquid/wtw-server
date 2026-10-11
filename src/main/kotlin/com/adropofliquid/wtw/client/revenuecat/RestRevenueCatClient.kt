@@ -1,4 +1,4 @@
-package com.adropofliquid.wtw.client
+package com.adropofliquid.wtw.client.revenuecat
 
 import com.adropofliquid.wtw.config.WtwProperties
 import org.springframework.context.annotation.Profile
@@ -8,11 +8,6 @@ import org.springframework.web.client.RestClient
 import org.springframework.web.client.body
 import java.net.http.HttpClient
 import java.time.Duration
-
-/** Asks RevenueCat whether a uid has the premium entitlement now. Throws on any upstream error. */
-fun interface RevenueCatClient {
-    fun isPremium(uid: String): Boolean
-}
 
 /**
  * prod: REST v2 `GET /v2/projects/{RC_PROJECT_ID}/customers/{uid}` → premium if
@@ -35,12 +30,4 @@ class RestRevenueCatClient(private val props: WtwProperties) : RevenueCatClient 
         val items = ((body["active_entitlements"] as? Map<*, *>)?.get("items") as? List<*>) ?: return false
         return items.any { (it as? Map<*, *>)?.get("entitlement_id") == rc.entitlementId }
     }
-}
-
-/** Not prod: no network. Premium = uid listed in RC_DEV_PREMIUM_UIDS. */
-@Component
-@Profile("!prod")
-class StubRevenueCatClient(private val props: WtwProperties) : RevenueCatClient {
-    override fun isPremium(uid: String) =
-        props.revenuecat.devPremiumUids.split(",").map { it.trim() }.filter { it.isNotEmpty() }.contains(uid)
 }

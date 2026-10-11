@@ -1,8 +1,8 @@
 package com.adropofliquid.wtw.service
 
-import com.adropofliquid.wtw.client.ChatMessage
-import com.adropofliquid.wtw.client.GeminiCallLog
-import com.adropofliquid.wtw.client.GeminiClient
+import com.adropofliquid.wtw.client.gemini.ChatMessage
+import com.adropofliquid.wtw.client.gemini.GeminiCallLog
+import com.adropofliquid.wtw.client.gemini.GeminiClient
 import com.adropofliquid.wtw.config.WtwProperties
 import com.adropofliquid.wtw.domain.AiSession
 import com.adropofliquid.wtw.domain.AiSuggestion

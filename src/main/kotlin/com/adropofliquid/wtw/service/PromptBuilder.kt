@@ -1,6 +1,6 @@
 package com.adropofliquid.wtw.service
 
-import com.adropofliquid.wtw.client.StubGeminiClient
+import com.adropofliquid.wtw.client.gemini.StubGeminiClient
 import com.adropofliquid.wtw.dto.WardrobeEntryDto
 import com.adropofliquid.wtw.dto.WeatherDto
 import com.adropofliquid.wtw.dto.SuggestionModifications

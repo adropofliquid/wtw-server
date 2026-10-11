@@ -1,6 +1,6 @@
 package com.adropofliquid.wtw.service
 
-import com.adropofliquid.wtw.client.ObjectStorage
+import com.adropofliquid.wtw.client.storage.ObjectStorage
 import com.adropofliquid.wtw.config.OldDatabase
 import com.adropofliquid.wtw.config.RequestLoggingFilter.Companion.uidHash
 import com.adropofliquid.wtw.config.WtwProperties

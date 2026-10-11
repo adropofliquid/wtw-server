@@ -1,7 +1,7 @@
 package com.adropofliquid.wtw.service
 
-import com.adropofliquid.wtw.client.Keys
-import com.adropofliquid.wtw.client.ObjectStorage
+import com.adropofliquid.wtw.client.storage.Keys
+import com.adropofliquid.wtw.client.storage.ObjectStorage
 import com.adropofliquid.wtw.domain.*
 import com.adropofliquid.wtw.dto.*
 import com.adropofliquid.wtw.repository.*

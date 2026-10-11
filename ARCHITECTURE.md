@@ -23,7 +23,8 @@ src/main/kotlin/com/adropofliquid/wtw/
   dto/          Request/response shapes (camelCase JSON).
   config/       Properties (WtwProperties), DataSource, Firebase, request logging.
   security/     Auth filter, token verifiers, SecurityConfig.
-  client/       External systems behind interfaces: storage, Gemini, rembg, FCM, RevenueCat, WeatherAPI.
+  client/       External systems behind interfaces, one folder each: gemini/ revenuecat/ weather/ rembg/ push/ storage/.
+                The interface file holds its shared types; each implementation (prod, stub) has its own file.
 src/main/resources/
   application.yml, application-dev.yml, db/migration/V1__schema.sql, V2__seed_config.sql, prompts/
 ```

@@ -1,7 +1,7 @@
 package com.adropofliquid.wtw.controller
 
-import com.adropofliquid.wtw.client.Bucket
-import com.adropofliquid.wtw.client.LocalObjectStorage
+import com.adropofliquid.wtw.client.storage.Bucket
+import com.adropofliquid.wtw.client.storage.LocalObjectStorage
 import com.adropofliquid.wtw.service.ApiException
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty

@@ -1,6 +1,6 @@
 package com.adropofliquid.wtw.service
 
-import com.adropofliquid.wtw.client.RevenueCatClient
+import com.adropofliquid.wtw.client.revenuecat.RevenueCatClient
 import com.adropofliquid.wtw.config.RequestLoggingFilter.Companion.uidHash
 import com.adropofliquid.wtw.config.WtwProperties
 import com.github.benmanes.caffeine.cache.Caffeine

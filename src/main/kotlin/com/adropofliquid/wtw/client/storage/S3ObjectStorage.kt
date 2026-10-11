@@ -1,4 +1,4 @@
-package com.adropofliquid.wtw.client
+package com.adropofliquid.wtw.client.storage
 
 import com.adropofliquid.wtw.config.WtwProperties
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty

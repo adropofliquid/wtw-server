@@ -1,8 +1,7 @@
-package com.adropofliquid.wtw.client
+package com.adropofliquid.wtw.client.rembg
 
 import com.adropofliquid.wtw.config.WtwProperties
 import com.adropofliquid.wtw.service.ApiException
-import com.adropofliquid.wtw.service.ImageProcessor
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.core.io.ByteArrayResource
@@ -17,11 +16,6 @@ import java.io.InterruptedIOException
 import java.net.http.HttpClient
 import java.net.http.HttpTimeoutException
 import java.time.Duration
-
-/** Background removal (brief 4.5). Returns a transparent PNG. Throws ApiException 502/504 on failure. */
-fun interface BackgroundRemovalClient {
-    fun remove(photo: ByteArray): ByteArray
-}
 
 /** REMBG_MODE=http (prod default): multipart POST (field `file`) to REMBG_URL, the Python rembg service. Timeout REMBG_TIMEOUT_MS → 504. */
 @Component
@@ -57,11 +51,4 @@ class RembgClient(private val props: WtwProperties) : BackgroundRemovalClient {
 
     private fun warn(status: Int?, start: Long) =
         log.warn("upstream=rembg failed status={} ms={}", status ?: "-", (System.nanoTime() - start) / 1_000_000)
-}
-
-/** REMBG_MODE=stub (dev default): no network. The photo back as a PNG, longest side 600 (like rembg with MAX_SIDE=600). */
-@Component
-@ConditionalOnProperty(name = ["wtw.rembg.mode"], havingValue = "stub")
-class StubBackgroundRemovalClient(private val images: ImageProcessor) : BackgroundRemovalClient {
-    override fun remove(photo: ByteArray): ByteArray = images.toPng(photo, 600)
 }

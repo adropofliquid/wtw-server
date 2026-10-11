@@ -1,8 +1,8 @@
 package com.adropofliquid.wtw.service
 
-import com.adropofliquid.wtw.client.BackgroundRemovalClient
-import com.adropofliquid.wtw.client.GeminiCallLog
-import com.adropofliquid.wtw.client.GeminiClient
+import com.adropofliquid.wtw.client.rembg.BackgroundRemovalClient
+import com.adropofliquid.wtw.client.gemini.GeminiCallLog
+import com.adropofliquid.wtw.client.gemini.GeminiClient
 import com.adropofliquid.wtw.config.WtwProperties
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile

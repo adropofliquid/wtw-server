@@ -4,6 +4,7 @@ Agent-facing. Read `ARCHITECTURE.md` first. Write plainly in code comments and d
 
 ## Ground rules
 - Folders by layer: `controller/ service/ domain/ repository/ dto/ config/ security/ client/`. No per-domain packages.
+  The one split: `client/` has one sub-package per external system (`gemini/ revenuecat/ weather/ rembg/ push/ storage/`).
 - No tests (developer ruling). Verify by running the app (dev profile) and calling the route with `curl`.
 - No raw SQL in app code. Use derived query methods. `@Query` JPQL only when a derived query cannot say it; add a comment why.
   The one exception is the data copy, which reads the OLD database with plain SELECTs (it has no entities).
@@ -29,9 +30,9 @@ Agent-facing. Read `ARCHITECTURE.md` first. Write plainly in code comments and d
 5. Boot once: `validate` proves the entity matches.
 
 ## Recipe: add an external client
-1. `client/FooClient.kt`: a small interface with the calls you need.
+1. `client/foo/FooClient.kt`: a small interface with the calls you need. Each implementation goes in its own file in the same folder.
 2. Real implementation `@Component @Profile("prod")` reading config from `WtwProperties` (add the field there and the env var in `application.yml`). Use `RestClient` with `JdkClientHttpRequestFactory` and explicit timeouts. Map timeouts to `ApiException.upstreamTimeout`, other failures to `upstreamFailed`. Log failures at WARN with upstream, status, ms.
-3. Stub `@Component @Profile("!prod")` with canned, valid results and no network.
+3. Stub (`client/foo/StubFooClient.kt`) `@Component @Profile("!prod")` with canned, valid results and no network.
 4. If someone may want the real client in dev, use a mode property instead of a profile (see `STORAGE_MODE`, `REMBG_MODE` with `@ConditionalOnProperty`).
 5. Add the env vars to README "Configuration".
 

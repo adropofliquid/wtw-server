@@ -1,4 +1,4 @@
-package com.adropofliquid.wtw.client
+package com.adropofliquid.wtw.client.weather
 
 import com.adropofliquid.wtw.config.WtwProperties
 import com.adropofliquid.wtw.dto.CurrentWeather
@@ -17,15 +17,7 @@ import java.net.SocketTimeoutException
 import java.net.http.HttpClient
 import java.net.http.HttpTimeoutException
 import java.time.Duration
-import java.time.LocalDate
-import java.time.ZoneOffset
-import kotlin.math.abs
 import kotlin.math.roundToInt
-
-/** A forecast for [days] days from today, already in the Open-Meteo shape (brief 4.8). Throws ApiException 502/504. */
-fun interface WeatherClient {
-    fun forecast(latitude: Double, longitude: Double, days: Int): WeatherForecastResponse
-}
 
 /**
  * prod: WeatherAPI.com `forecast.json?key=…&q={lat},{lon}&days={n}`, mapped to the Open-Meteo shape.
@@ -86,43 +78,5 @@ class WeatherApiClient(private val props: WtwProperties) : WeatherClient {
                 },
             ),
         )
-    }
-}
-
-/** Not prod: no network. A canned forecast that depends only on the coordinates and today's date (UTC). */
-@Component
-@Profile("!prod")
-class StubWeatherClient : WeatherClient {
-    override fun forecast(latitude: Double, longitude: Double, days: Int): WeatherForecastResponse {
-        val today = LocalDate.now(ZoneOffset.UTC)
-        val base = 18.0 - abs(latitude) / 6.0
-        val codes = listOf(0, 2, 3, 61, 3, 2, 45, 0, 61, 71, 95)
-        val shift = abs((latitude * 7 + longitude * 3).toInt())
-        val idx = (0 until days).map { (it + shift) % codes.size }
-        fun r1(d: Double) = (d * 10).roundToInt() / 10.0
-        return WeatherForecastResponse(
-            current = CurrentWeather(r1(base), codes[idx.first()]),
-            daily = DailyWeather(
-                time = (0 until days).map { today.plusDays(it.toLong()).toString() },
-                weatherCode = idx.map { codes[it] },
-                temperature2mMax = (0 until days).map { r1(base + 3 + (it % 4)) },
-                temperature2mMin = (0 until days).map { r1(base - 4 + (it % 3)) },
-                precipitationProbabilityMax = idx.map { if (codes[it] >= 61) 80 else 10 * (it % 3) },
-            ),
-        )
-    }
-}
-
-/** WeatherAPI.com condition code → WMO code (brief 4.8). Only needs to land in the app's right group. */
-object WeatherCodes {
-    fun toWmo(code: Int): Int = when (code) {
-        1000 -> 0
-        1003 -> 2
-        1006, 1009 -> 3
-        1030, 1135, 1147 -> 45
-        1063, 1072, in 1150..1201, in 1240..1246 -> 61
-        1066, 1069, 1114, 1117, in 1204..1237, in 1249..1264 -> 71
-        1087, in 1273..1282 -> 95
-        else -> 3
     }
 }

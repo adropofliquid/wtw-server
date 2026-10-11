@@ -1,6 +1,6 @@
 package com.adropofliquid.wtw.service
 
-import com.adropofliquid.wtw.client.WeatherClient
+import com.adropofliquid.wtw.client.weather.WeatherClient
 import com.adropofliquid.wtw.config.WtwProperties
 import com.adropofliquid.wtw.dto.WeatherForecastResponse
 import com.github.benmanes.caffeine.cache.Caffeine

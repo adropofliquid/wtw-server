@@ -16,7 +16,7 @@ All were accepted by the developer (ruling 9.3). Each is implemented as written 
 | 3.2 | No FK on `catalog_id`, piece/packing `item_id` | Superseded by ruling 9.1: no FKs at all |
 | 3.2 | `generated_key` on items | `MirrorItem`, `MirrorImageService` (`kind=generated`) |
 | 3.3 | Generated items: styles from gender | `LibrarySeedRunner` (men → masculine, women → feminine, else empty) |
-| 3.6 | Push to all of a user's tokens; dead tokens deleted | `NotificationJobService`, `client/PushSender.kt` |
+| 3.6 | Push to all of a user's tokens; dead tokens deleted | `NotificationJobService`, `client/push/` |
 | 3.7 | `config_map` real JSON types | `V2__seed_config.sql`, `AppConfigService` / `LedgerSettings` |
 | 3.7 | Daily generation caps 20 / 200 | `app_config.ledger`, `SuggestionService` |
 | 4.1 | GET profile 404 if only a stub | `UserProfileService.get` |
@@ -88,3 +88,6 @@ All were accepted by the developer (ruling 9.3). Each is implemented as written 
 - **B-53 Equal `updated_at` = unchanged** (that is what makes a re-run write 0 rows). A transform fix will not reach rows already copied unless the target is reset first.
 - **B-54 Apply refuses to run** when `OLD_DB_URL` and `DATABASE_URL` point at the same database.
 - **B-55 `position` "NULL" rows** are actually empty arrays (`{}`) in the real data; treated as NULL (centre, scale 0.714).
+
+## C. Cleanup pass after the review (2026-10-11, `REVIEW_2026-10-11.md`)
+- **C-5 Client package split:** `client/` now has one folder per external system (`gemini/ revenuecat/ weather/ rembg/ push/ storage/`). The interface file keeps its shared types; each implementation sits in its own file. Pure moves.

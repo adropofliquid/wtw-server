@@ -1,7 +1,7 @@
 package com.adropofliquid.wtw.service
 
-import com.adropofliquid.wtw.client.PushOutcome
-import com.adropofliquid.wtw.client.PushSender
+import com.adropofliquid.wtw.client.push.PushOutcome
+import com.adropofliquid.wtw.client.push.PushSender
 import com.adropofliquid.wtw.config.WtwProperties
 import com.adropofliquid.wtw.domain.UserProfile
 import com.adropofliquid.wtw.repository.AiSessionRepository
