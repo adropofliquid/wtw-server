@@ -1,0 +1,10 @@
+.git
+.gradle
+build
+.idea
+.local-storage
+library-seed
+credentials
+.env*
+data-copy-*
+*.md

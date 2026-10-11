@@ -39,9 +39,12 @@ data class WtwProperties(
         val timeoutMs: Long = 60_000,
     )
 
-    data class Rembg(val url: String = "http://localhost:8000/rembg", val timeoutMs: Long = 60_000)
+    /** mode: http (real rembg service) or stub (no network). */
+    data class Rembg(val mode: String = "http", val url: String = "http://localhost:8000/rembg", val timeoutMs: Long = 60_000)
 
+    /** mode: s3 (S3 / R2 / MinIO) or local (filesystem, dev). */
     data class Storage(
+        val mode: String = "s3",
         val endpoint: String = "",
         val region: String = "auto",
         val accessKey: String = "",

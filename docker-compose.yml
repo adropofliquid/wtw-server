@@ -1,0 +1,74 @@
+# LOCAL DEVELOPMENT ONLY. Dokku does not deploy from this file (see README "Deploy").
+# `docker compose up` gives Postgres 17, MinIO (S3 stand-in), rembg and the API.
+# The API runs the dev profile (stub Gemini/WeatherAPI/RevenueCat/FCM, dev auth) with MinIO storage and the real rembg.
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: wtw
+      POSTGRES_USER: wtw
+      POSTGRES_PASSWORD: wtw
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wtw -d wtw"]
+      interval: 5s
+      retries: 20
+
+  rembg:
+    # The remover lives in its own repo (whattowear/imgbg-remover). Override the path with REMBG_CONTEXT.
+    build: ${REMBG_CONTEXT:-../../imgbg-remover}
+    environment:
+      MAX_SIDE: "600"
+    ports: ["8000:8000"]
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: wtwlocal
+      MINIO_ROOT_PASSWORD: wtwlocalsecret
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [miniodata:/data]
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on: [minio]
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 wtwlocal wtwlocalsecret; do sleep 1; done;
+      mc mb -p local/wtw-user local/wtw-library;
+      mc anonymous set download local/wtw-library;
+      exit 0"
+
+  api:
+    build: .
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DATABASE_URL: postgres://wtw:wtw@postgres:5432/wtw
+      REMBG_MODE: http
+      REMBG_URL: http://rembg:8000/rembg
+      STORAGE_MODE: s3
+      STORAGE_ENDPOINT: http://minio:9000
+      STORAGE_REGION: us-east-1
+      STORAGE_ACCESS_KEY: wtwlocal
+      STORAGE_SECRET_KEY: wtwlocalsecret
+      STORAGE_BUCKET_USER: wtw-user
+      STORAGE_BUCKET_LIBRARY: wtw-library
+      STORAGE_LIBRARY_PUBLIC_URL: http://localhost:9000/wtw-library
+      # Copy rehearsals only: the host's local copy of the old database (read-only use).
+      OLD_DB_URL: ${OLD_DB_URL:-}
+    volumes:
+      - ./credentials:/app/credentials:ro
+    ports: ["8080:8080"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      minio-init: {condition: service_completed_successfully}
+      rembg: {condition: service_started}
+
+volumes:
+  pgdata:
+  miniodata:

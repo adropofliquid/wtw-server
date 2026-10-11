@@ -5,3 +5,7 @@ wtw:
     dev-bypass-enabled: ${AUTH_DEV_BYPASS_ENABLED:true}
   notifications:
     enabled: ${NOTIFICATIONS_ENABLED:false}
+  storage:
+    mode: ${STORAGE_MODE:local}
+  rembg:
+    mode: ${REMBG_MODE:stub}

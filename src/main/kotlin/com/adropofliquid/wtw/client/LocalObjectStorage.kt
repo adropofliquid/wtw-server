@@ -1,16 +1,16 @@
 package com.adropofliquid.wtw.client
 
 import com.adropofliquid.wtw.config.WtwProperties
-import org.springframework.context.annotation.Profile
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.io.path.*
 
-/** Not prod: stores objects as files under `STORAGE_LOCAL_DIR/{bucket}/{key}`. URLs point at DevFilesController. */
+/** STORAGE_MODE=local (dev default): stores objects as files under `STORAGE_LOCAL_DIR/{bucket}/{key}`. URLs point at DevFilesController. */
 @Component
-@Profile("!prod")
+@ConditionalOnProperty(name = ["wtw.storage.mode"], havingValue = "local")
 class LocalObjectStorage(private val props: WtwProperties) : ObjectStorage {
     private val root: Path = Paths.get(props.storage.localDir).toAbsolutePath().normalize()
 

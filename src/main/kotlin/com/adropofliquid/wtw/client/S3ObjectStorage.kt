@@ -1,7 +1,7 @@
 package com.adropofliquid.wtw.client
 
 import com.adropofliquid.wtw.config.WtwProperties
-import org.springframework.context.annotation.Profile
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
@@ -14,11 +14,11 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner
 import java.net.URI
 
 /**
- * prod: S3-compatible storage (AWS S3 or Cloudflare R2). Set STORAGE_ENDPOINT for R2
+ * STORAGE_MODE=s3 (prod default; docker compose uses it with MinIO): S3-compatible storage (AWS S3 or Cloudflare R2). Set STORAGE_ENDPOINT for R2
  * (`https://<account>.r2.cloudflarestorage.com`, region `auto`); leave it empty for AWS S3.
  */
 @Component
-@Profile("prod")
+@ConditionalOnProperty(name = ["wtw.storage.mode"], havingValue = "s3")
 class S3ObjectStorage(private val props: WtwProperties) : ObjectStorage {
     private val s = props.storage
     private val creds = StaticCredentialsProvider.create(AwsBasicCredentials.create(s.accessKey, s.secretKey))

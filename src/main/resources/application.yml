@@ -49,9 +49,11 @@ wtw:
     model-image: ${GEMINI_MODEL_IMAGE:gemini-2.5-flash-image}
     timeout-ms: ${AI_TIMEOUT_MS:60000}
   rembg:
+    mode: ${REMBG_MODE:http}
     url: ${REMBG_URL:http://localhost:8000/rembg}
     timeout-ms: ${REMBG_TIMEOUT_MS:60000}
   storage:
+    mode: ${STORAGE_MODE:s3}
     endpoint: ${STORAGE_ENDPOINT:}
     region: ${STORAGE_REGION:auto}
     access-key: ${STORAGE_ACCESS_KEY:}

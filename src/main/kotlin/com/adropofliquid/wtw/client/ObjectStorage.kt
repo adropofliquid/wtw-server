@@ -7,8 +7,8 @@ class StoredObject(val bytes: ByteArray, val contentType: String?)
 
 /**
  * Object storage behind one interface.
- * - prod: S3ObjectStorage (S3 or Cloudflare R2, S3-compatible API).
- * - not prod: LocalObjectStorage (files under STORAGE_LOCAL_DIR, served at /dev-files/...).
+ * - STORAGE_MODE=s3 (prod default): S3ObjectStorage (S3, Cloudflare R2 or MinIO; S3-compatible API).
+ * - STORAGE_MODE=local (dev default): LocalObjectStorage (files under STORAGE_LOCAL_DIR, served at /dev-files/...).
  *
  * Keys (brief 5.4): `users/{uid}/items/{itemId}/cutout.webp`, `.../generated.webp`, `library/{libraryId}.webp`.
  * Use [Keys] to build them.
