@@ -687,9 +687,9 @@ class DataCopyService(
                 ),
                 "errors" to errors,
             )
-            java.io.File("data-copy-report-$ts.json").writeBytes(JsonMapper.builder().build().writerWithDefaultPrettyPrinter().writeValueAsBytes(report))
-            writeUsersCsv("data-copy-users-$ts.csv")
-            java.io.File("data-copy-missing-images.csv").printWriter().use { w ->
+            reportFile("data-copy-report-$ts.json").writeBytes(JsonMapper.builder().build().writerWithDefaultPrettyPrinter().writeValueAsBytes(report))
+            writeUsersCsv(reportFile("data-copy-users-$ts.csv"))
+            reportFile("data-copy-missing-images.csv").printWriter().use { w ->
                 w.println("user_id,item_id,old_key,buckets_tried,reason")
                 missing.forEach { r -> w.println(r.joinToString(",") { csv(it) }) }
             }
@@ -697,9 +697,15 @@ class DataCopyService(
             return if (errors.isEmpty() && tablesOk && (!opts.apply || mismatched.isEmpty())) 0 else 1
         }
 
-        private fun writeUsersCsv(name: String) {
+        /** Report files go to DATA_COPY_REPORT_DIR (default: working dir). On Dokku point it at a mounted folder. */
+        private fun reportFile(name: String): java.io.File {
+            val dir = java.io.File(System.getenv("DATA_COPY_REPORT_DIR") ?: ".").apply { mkdirs() }
+            return java.io.File(dir, name)
+        }
+
+        private fun writeUsersCsv(file: java.io.File) {
             val ts = listOf("items", "outfits", "pieces", "planned", "sessions", "suggestions")
-            java.io.File(name).printWriter().use { w ->
+            file.printWriter().use { w ->
                 w.println((listOf("user_id") + ts.flatMap { listOf("${it}_old", "${it}_skipped", "${it}_expected", "${it}_new") } +
                     listOf("phone_newer", "pull_rows", "pull_bytes_est", "ok", "error")).joinToString(","))
                 for (u in users) {
@@ -726,7 +732,7 @@ class DataCopyService(
             sb.append("global counts reconcile: $tablesOk; users with count mismatch: $mismatched; users with errors: ${errors.size}\n")
             sb.append("largest pull: rows ${rows?.pullRows} (user ${rows?.let { uidHash(it.uid) }}), bytes≈${bytes?.pullBytes} (user ${bytes?.let { uidHash(it.uid) }})\n")
             sb.append("ledger entries: $ledgerEntries; rows $verb: $written; timings ms: $timings\n")
-            sb.append("files: data-copy-report-$ts.json, data-copy-users-$ts.csv, data-copy-missing-images.csv\n")
+            sb.append("files in ${reportFile("x").absoluteFile.parent ?: "."}: data-copy-report-$ts.json, data-copy-users-$ts.csv, data-copy-missing-images.csv\n")
             log.info(sb.toString())
         }
 
