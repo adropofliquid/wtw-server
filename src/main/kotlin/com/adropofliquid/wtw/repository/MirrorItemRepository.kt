@@ -11,4 +11,6 @@ interface MirrorItemRepository : JpaRepository<MirrorItem, String> {
     /** Pull with since>0: every row written after `since`, tombstones included. */
     fun findByUserIdAndSyncedAtAfter(userId: String, since: Instant): List<MirrorItem>
     fun deleteByUserId(userId: String): Long
+    /** Data copy (7.9): per-user count. */
+    fun countByUserId(userId: String): Long
 }

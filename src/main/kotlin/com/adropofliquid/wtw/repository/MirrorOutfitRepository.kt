@@ -8,4 +8,6 @@ interface MirrorOutfitRepository : JpaRepository<MirrorOutfit, String> {
     fun findByUserIdAndDeletedAtIsNull(userId: String): List<MirrorOutfit>
     fun findByUserIdAndSyncedAtAfter(userId: String, since: Instant): List<MirrorOutfit>
     fun deleteByUserId(userId: String): Long
+    /** Data copy (7.9): per-user count. */
+    fun countByUserId(userId: String): Long
 }

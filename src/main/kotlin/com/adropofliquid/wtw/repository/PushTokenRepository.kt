@@ -7,4 +7,7 @@ interface PushTokenRepository : JpaRepository<PushToken, java.util.UUID> {
     fun findByFcmToken(fcmToken: String): PushToken?
     fun findByUserId(userId: String): List<PushToken>
     fun deleteByUserId(userId: String): Long
+    /** Data copy: existing rows for these tokens. */
+    fun findByFcmTokenIn(tokens: Collection<String>): List<PushToken>
+    fun countByUserId(userId: String): Long
 }

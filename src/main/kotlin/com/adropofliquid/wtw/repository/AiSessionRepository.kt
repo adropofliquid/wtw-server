@@ -13,4 +13,6 @@ interface AiSessionRepository : JpaRepository<AiSession, String> {
         userId: String, from: Instant, to: Instant,
     ): Boolean
     fun deleteByUserId(userId: String): Long
+    /** Data copy (7.9): per-user count. */
+    fun countByUserId(userId: String): Long
 }

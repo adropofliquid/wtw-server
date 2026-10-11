@@ -11,4 +11,6 @@ interface MirrorPlannedRepository : JpaRepository<MirrorPlanned, UserDateId> {
     fun findByUserIdAndDeletedAtIsNull(userId: String): List<MirrorPlanned>
     fun findByUserIdAndSyncedAtAfter(userId: String, since: Instant): List<MirrorPlanned>
     fun deleteByUserId(userId: String): Long
+    fun findByUserId(userId: String): List<MirrorPlanned>
+    fun countByUserId(userId: String): Long
 }
