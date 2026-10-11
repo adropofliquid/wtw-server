@@ -14,4 +14,6 @@ interface AiSuggestionRepository : JpaRepository<AiSuggestion, String> {
     /** Stylist notes: recent history. */
     fun findTop100ByUserIdOrderByCreatedAtDesc(userId: String): List<AiSuggestion>
     fun deleteByUserId(userId: String): Long
+    /** Data copy (7.9): per-user count. */
+    fun countByUserId(userId: String): Long
 }
