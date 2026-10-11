@@ -4,7 +4,8 @@ import com.adropofliquid.wtw.domain.LedgerEntry
 import com.adropofliquid.wtw.repository.LedgerEntryRepository
 import com.adropofliquid.wtw.repository.UserProfileRepository
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -18,7 +19,9 @@ object Reason {
     const val PREMIUM_TOPUP = "premium_topup"
     const val PACK_PURCHASE = "pack_purchase"
     const val PACK_REFUND = "pack_refund"
+    /** Flat fee per suggestion session, charged at start; ref = session id. */
     const val OUTFIT_SUGGESTION = "outfit_suggestion"
+    /** ref = `idem:{Idempotency-Key}` when the app sends one, else `call:{uuid}`. Same for OUTFIT_DESCRIPTION. */
     const val AI_IMAGE = "ai_image"
     const val OUTFIT_DESCRIPTION = "outfit_description"
     const val REFUND_FAILED_CALL = "refund_failed_call"
@@ -47,6 +50,11 @@ data class Charge(val ref: String, val reason: String, val weekly: Int, val purc
  * Metered pattern (CONTRIBUTING "Add a metered action"): call [spend] (its own transaction, commits at once),
  * then the upstream call OUTSIDE any transaction, then [refund] if the call failed. Never hold a DB
  * transaction open across a Gemini call.
+ *
+ * Premium is resolved BEFORE the transaction opens (cache, then RevenueCat with its timeout), so a slow
+ * RevenueCat never holds a pooled connection or the profile row lock. Each method then runs its DB work in
+ * [tx] (REQUIRED: it joins a caller's transaction, like @Transactional did). Do not call the ledger from
+ * inside your own transaction: the RevenueCat lookup would then run inside it.
  */
 @Service
 class LedgerService(
@@ -54,30 +62,42 @@ class LedgerService(
     private val profiles: UserProfileRepository,
     private val entitlements: EntitlementService,
     private val config: AppConfigService,
+    txManager: PlatformTransactionManager,
 ) {
-    @Transactional
+    private val tx = TransactionTemplate(txManager)
+
     fun read(uid: String): LedgerState {
-        lock(uid)
-        return grantAndState(uid)
+        val premium = entitlements.isPremium(uid)
+        return tx.execute {
+            lock(uid)
+            grantAndState(uid, premium)
+        }!!
     }
 
     /** 402 INSUFFICIENT_CREDITS unless the balance covers [cost]. Charges nothing (suggest/start). */
-    @Transactional
     fun requireBalance(uid: String, cost: Int): LedgerState {
-        val state = read(uid)
-        if (state.balance < cost) throw ApiException.insufficientCredits(state.balance, cost)
-        return state
+        val premium = entitlements.isPremium(uid)
+        return tx.execute {
+            lock(uid)
+            val state = grantAndState(uid, premium)
+            if (state.balance < cost) throw ApiException.insufficientCredits(state.balance, cost)
+            state
+        }!!
     }
 
     /**
      * Debits [cost] credits. [ref] makes it idempotent (e.g. the suggestion id); null → a fresh ref per call.
      * A repeat of the same (reason, ref) charges nothing and returns charged=false.
      */
-    @Transactional
     fun spend(uid: String, reason: String, cost: Int, ref: String? = null): Charge {
+        val premium = entitlements.isPremium(uid)
+        return tx.execute { spendLocked(uid, reason, cost, ref, premium) }!!
+    }
+
+    private fun spendLocked(uid: String, reason: String, cost: Int, ref: String?, premium: Boolean): Charge {
         lock(uid)
         val r = ref ?: "call:${UUID.randomUUID()}"
-        var state = grantAndState(uid)
+        var state = grantAndState(uid, premium)
         if (entries.existsByUserIdAndReasonAndRef(uid, reason, r)) return Charge(r, reason, 0, 0, false, state)
         if (cost <= 0) return Charge(r, reason, 0, 0, true, state)
         if (state.balance < cost) throw ApiException.insufficientCredits(state.balance, cost)
@@ -90,10 +110,14 @@ class LedgerService(
     }
 
     /** Gives back exactly what [charge] took (reason refund_failed_call, ref `refund:{ref}`). Safe to repeat. */
-    @Transactional
     fun refund(uid: String, charge: Charge): LedgerState {
+        val premium = entitlements.isPremium(uid)
+        return tx.execute { refundLocked(uid, charge, premium) }!!
+    }
+
+    private fun refundLocked(uid: String, charge: Charge, premium: Boolean): LedgerState {
         lock(uid)
-        if (!charge.charged || charge.weekly + charge.purchased == 0) return grantAndState(uid)
+        if (!charge.charged || charge.weekly + charge.purchased == 0) return grantAndState(uid, premium)
         val week = currentWeek(uid)
         if (charge.weekly > 0 && !entries.existsByUserIdAndReasonAndRef(uid, Reason.REFUND_FAILED_CALL, "refund:${charge.ref}")) {
             entries.save(LedgerEntry(userId = uid, bucket = WEEKLY, delta = charge.weekly, reason = Reason.REFUND_FAILED_CALL, weekStart = week, ref = "refund:${charge.ref}"))
@@ -101,28 +125,26 @@ class LedgerService(
         if (charge.purchased > 0 && !entries.existsByUserIdAndReasonAndRef(uid, Reason.REFUND_FAILED_CALL, "refund:${charge.ref}#purchased")) {
             entries.save(LedgerEntry(userId = uid, bucket = PURCHASED, delta = charge.purchased, reason = Reason.REFUND_FAILED_CALL, ref = "refund:${charge.ref}#purchased"))
         }
-        return grantAndState(uid)
+        return grantAndState(uid, premium)
     }
 
     /** Credits PURCHASED (pack purchase, admin). Returns false if this (reason, ref) was already applied. */
-    @Transactional
-    fun creditPurchased(uid: String, credits: Int, reason: String, ref: String): Boolean {
+    fun creditPurchased(uid: String, credits: Int, reason: String, ref: String): Boolean = tx.execute {
         lock(uid)
-        if (entries.existsByUserIdAndReasonAndRef(uid, reason, ref)) return false
+        if (entries.existsByUserIdAndReasonAndRef(uid, reason, ref)) return@execute false
         entries.save(LedgerEntry(userId = uid, bucket = PURCHASED, delta = credits, reason = reason, ref = ref))
-        return true
-    }
+        true
+    }!!
 
     /** Debits PURCHASED by up to [credits], never below 0 (pack refund). Returns the amount debited, or -1 if repeated. */
-    @Transactional
-    fun debitPurchasedFloor(uid: String, credits: Int, reason: String, ref: String): Int {
+    fun debitPurchasedFloor(uid: String, credits: Int, reason: String, ref: String): Int = tx.execute {
         lock(uid)
-        if (entries.existsByUserIdAndReasonAndRef(uid, reason, ref)) return -1
+        if (entries.existsByUserIdAndReasonAndRef(uid, reason, ref)) return@execute -1
         val have = entries.findByUserIdAndBucket(uid, PURCHASED).sumOf { it.delta }.coerceAtLeast(0)
         val take = minOf(have, credits)
         if (take > 0) entries.save(LedgerEntry(userId = uid, bucket = PURCHASED, delta = -take, reason = reason, ref = ref))
-        return take
-    }
+        take
+    }!!
 
     fun currentWeek(uid: String): LocalDate = LocalDate.now(zone(uid)).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
 
@@ -133,9 +155,8 @@ class LedgerService(
     private fun zone(uid: String): ZoneId = profiles.findById(uid).orElse(null)?.timezone
         ?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: ZoneId.of("UTC")
 
-    /** Lazy weekly grant and mid-week premium top-up, then the numbers. Caller holds the lock. */
-    private fun grantAndState(uid: String): LedgerState {
-        val premium = entitlements.isPremium(uid)
+    /** Lazy weekly grant and mid-week premium top-up, then the numbers. Caller holds the lock; [premium] was resolved before it. */
+    private fun grantAndState(uid: String, premium: Boolean): LedgerState {
         val week = currentWeek(uid)
         val cfg = config.ledger()
         val weekRows = entries.findByUserIdAndBucketAndWeekStart(uid, WEEKLY, week)
