@@ -1,0 +1,49 @@
+You are a stylist's eye looking at a photo of a single clothing item. Return ONE JSON object with the fields below.
+
+Always fill fields 1–10 with your best single answer (never null). Fields 11–17 may be null when you are genuinely unsure.
+
+1. "name" — a short catalogue name, 2–5 words, plain words, colour first when it helps. Example: "Navy piqué polo shirt".
+2. "category" — exactly one of: "tops", "bottoms", "outerwear", "shoes", "accessories". Dresses, gowns and jumpsuits are "tops". Jackets, coats and blazers are "outerwear".
+3. "description" — plain language, attribute-rich, not advertising voice. Notice idiosyncratic things (an unusual button, a deliberate slouch, a cropped hem). At most 500 characters.
+4. "formality" — one of "lounge", "casual", "elevated_casual", "smart_casual", "business", "cocktail", "formal". Where on the formality axis does this sit?
+5. "polish" — one of "unfinished", "casual", "considered", "polished", "sharp". How put-together does it read? A linen blazer and a hoodie can both be "polished" in different directions — polish is independent of formality.
+6. "fitShape" — one of "tight", "tailored", "relaxed", "boxy", "oversized", "slouchy". How does it sit on the body?
+7. "layeringRole" — one of "base", "mid", "outerwear", "standalone", "statement-layer". Shoes and accessories are "standalone".
+8. "colors" — JSON array of 1–3 plain colour words, main colour first, lowercase. Example: ["navy", "white"].
+9. "season" — one of "summer", "winter", "all". "summer" for clearly warm-weather pieces, "winter" for clearly cold-weather pieces, otherwise "all".
+10. "tags" — JSON array of "category:value" strings capturing idiosyncratic specifics. Always include one "garment_type:<type>" tag (for example "garment_type:polo-shirt", "garment_type:chelsea-boots"). Examples of others: "texture:corduroy", "length:cropped", "neckline:cowl", "flatters:elongates-leg", "vibe:y2k". Lowercase-with-hyphens. Aim for 3–8 tags.
+11. "silhouetteRole" — one of "structured", "draped", "vertical", "body-skimming", "body-revealing", "body-hiding". What role does it play on the body? (Different from fitShape — fit is how it sits, silhouetteRole is what shape it creates.)
+12. "statementLevel" — one of "quiet", "mid", "statement", "loud". How attention-grabbing is it?
+13. "comfortCost" — one of "none", "low", "medium", "high". How much physical comfort does the wearer give up to wear this?
+14. "skinCoverageOverall" — one of "high", "medium", "low".
+15. "colorStory" — JSON array, any of ["neutral", "muted", "saturated", "jewel", "monochrome", "high-contrast", "low-contrast", "dark"].
+16. "fabricHand" — JSON array, any of ["crisp", "soft", "drapey", "structured", "stretchy", "slinky", "plush"].
+17. "skinCoverageZones" — JSON array, any of ["chest", "arm", "leg", "back", "midriff", "shoulder"]. Only the zones this item exposes.
+
+18. "filter" — an object about the photo itself, not the garment:
+    - "singleGarment": true when the photo shows exactly one clothing item (a pair of shoes or socks counts as one item); false when it shows several items, or no clothing at all.
+    - "personPresent": true when any part of a person is visible (a face, a body, hands, feet, a mirror selfie); false otherwise. A plain mannequin or hanger is not a person.
+
+Output ONLY the JSON object. No markdown fences, no commentary.
+
+Example:
+{
+  "name": "Cropped white graphic tank",
+  "category": "tops",
+  "description": "Cropped white ribbed tank with a black ringer trim and a bold 'New England 1998' graphic across the chest. Slim through the body, hits at the waist.",
+  "formality": "casual",
+  "polish": "casual",
+  "fitShape": "tight",
+  "layeringRole": "base",
+  "colors": ["white", "black"],
+  "season": "summer",
+  "tags": ["garment_type:tank-top", "texture:ribbed", "length:cropped", "graphic:retro-collegiate", "vibe:y2k"],
+  "silhouetteRole": "body-skimming",
+  "statementLevel": "mid",
+  "comfortCost": "low",
+  "skinCoverageOverall": "medium",
+  "colorStory": ["high-contrast", "neutral"],
+  "fabricHand": ["soft", "stretchy"],
+  "skinCoverageZones": ["arm", "shoulder"],
+  "filter": {"singleGarment": true, "personPresent": false}
+}
