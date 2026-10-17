@@ -50,9 +50,8 @@ class LocalObjectStorage(private val props: WtwProperties) : ObjectStorage {
         return files.size
     }
 
-    override fun presignedUrl(key: String) = "${props.storage.localBaseUrl.trimEnd('/')}/dev-files/user/$key"
-
-    override fun publicUrl(key: String) = "${props.storage.localBaseUrl.trimEnd('/')}/dev-files/library/$key"
+    override fun presignedUrl(bucket: Bucket, key: String) =
+        "${props.storage.localBaseUrl.trimEnd('/')}/dev-files/${bucket.name.lowercase()}/$key"
 
     companion object {
         fun contentTypeOf(key: String) = when (key.substringAfterLast('.').lowercase()) {

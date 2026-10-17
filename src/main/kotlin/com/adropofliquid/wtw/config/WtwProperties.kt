@@ -35,10 +35,10 @@ data class WtwProperties(
         val vertexLocation: String = "us-central1",
         val modelSuggest: String = "gemini-2.5-flash",
         val modelAttributes: String = "gemini-2.5-flash-lite",
-        val modelImage: String = "gemini-2.5-flash-image",
-        val timeoutMs: Long = 60_000,
+        val modelImage: String = "gemini-3.1-flash-lite-image", // 2.5-flash-image was shut down 2026-10-02
+        val timeoutMs: Long = 600_000,
         /** The image call (/ai/generate-image) alone; set per request. */
-        val imageTimeoutMs: Long = 60_000,
+        val imageTimeoutMs: Long = 600_000,
         /** Not prod only: `stub` (canned) or `local` (LocalModelGeminiClient). Prod always uses Vertex. */
         val mode: String = "stub",
         val localModelUrl: String = "http://localhost:11434",
@@ -57,7 +57,6 @@ data class WtwProperties(
         val secretKey: String = "",
         val bucketUser: String = "wtw-user",
         val bucketLibrary: String = "wtw-library",
-        val libraryPublicUrl: String = "",
         val presignTtl: Duration = Duration.ofDays(7),
         val localDir: String = ".local-storage",
         val localBaseUrl: String = "http://localhost:8080",

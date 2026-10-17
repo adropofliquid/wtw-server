@@ -88,7 +88,7 @@ Live numbers (credits, costs, caps, pack sizes, notification copy) are **not** e
 | `VERTEX_PROJECT_ID`, `VERTEX_LOCATION` | —, `us-central1` | Vertex project and region |
 | `GEMINI_MODEL_SUGGEST` | `gemini-2.5-flash` | Suggestions, outfit description |
 | `GEMINI_MODEL_ATTRIBUTES` | `gemini-2.5-flash-lite` | Reading a photo |
-| `GEMINI_MODEL_IMAGE` | `gemini-2.5-flash-image` | AI item image |
+| `GEMINI_MODEL_IMAGE` | `gemini-3.1-flash-lite-image` | AI item image |
 | `AI_TIMEOUT_MS` | 60000 | Every Gemini call (except the image call) |
 | `AI_IMAGE_TIMEOUT_MS` | 60000 | The Gemini image call (`/ai/generate-image`). The app should wait 90 s on routes 15 and 16 (API.md). |
 | `GEMINI_MODE` | `stub` | Not prod only: `stub` or `local` (see "Local development: a local model"). Prod always uses Vertex. |
@@ -98,8 +98,7 @@ Live numbers (credits, costs, caps, pack sizes, notification copy) are **not** e
 | `STORAGE_ENDPOINT`, `STORAGE_REGION` | empty (= AWS), `auto` | S3-compatible endpoint (R2: `https://<account>.r2.cloudflarestorage.com`) |
 | `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` | — | Storage credentials |
 | `STORAGE_BUCKET_USER`, `STORAGE_BUCKET_LIBRARY` | `wtw-user`, `wtw-library` | Private user images; public library images |
-| `STORAGE_LIBRARY_PUBLIC_URL` | — | Public base URL of the library bucket |
-| `STORAGE_PRESIGN_TTL` | `7d` | Life of presigned user-image URLs |
+| `STORAGE_PRESIGN_TTL` | `7d` | Life of presigned image URLs (user images and Library) |
 | `STORAGE_LOCAL_DIR`, `STORAGE_LOCAL_BASE_URL` | `.local-storage`, `http://localhost:$PORT` | `local` mode only |
 | `IMAGE_MAX_SIDE`, `IMAGE_WEBP_QUALITY` | 600, 80 | Stored images |
 | `UPLOAD_MAX_BYTES` | 10485760 | Upload limit (also the multipart limit) |
@@ -164,7 +163,7 @@ dokku storage:mount wtw-server /var/lib/dokku/data/storage/wtw:/app/credentials 
 dokku config:set wtw-server FIREBASE_CREDENTIALS_PATH=/app/credentials/firebase.json \
   GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/vertex.json VERTEX_PROJECT_ID=… VERTEX_LOCATION=us-central1 \
   STORAGE_ENDPOINT=… STORAGE_ACCESS_KEY=… STORAGE_SECRET_KEY=… STORAGE_BUCKET_USER=… STORAGE_BUCKET_LIBRARY=… \
-  STORAGE_LIBRARY_PUBLIC_URL=… RC_API_KEY=… RC_PROJECT_ID=… RC_ENTITLEMENT_ID=… RC_WEBHOOK_AUTH=… \
+  RC_API_KEY=… RC_PROJECT_ID=… RC_ENTITLEMENT_ID=… RC_WEBHOOK_AUTH=… \
   WEATHER_API_KEY=… WEATHER_MAX_DAYS=… REMBG_URL=http://wtw-rembg.web:8000/rembg
 
 # Remover (its own repo: whattowear/imgbg-remover)

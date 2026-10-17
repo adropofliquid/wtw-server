@@ -709,7 +709,7 @@ Response 200 — an array (real output; one starter, one generated):
 | `category` | one of the five categories |
 | `vibes`, `styles`, `keywords` | string[] |
 | `brand` | string or null |
-| `imageUrl` | string. Public URL of the WebP image (no auth needed to fetch it in prod). |
+| `imageUrl` | string. Presigned URL of the WebP image, valid for `STORAGE_PRESIGN_TTL` (7 days). Do not store it; refetch `/library` for fresh URLs. |
 | `attributes` | superset attributes object, or null (null for starters) |
 
 App note: this is the KMP `CatalogItem` plus `source`, `brand`, `keywords` and `imageUrl`. Decode with
@@ -783,8 +783,8 @@ Idempotency-Key: 3f1c9a2e-6b1d-4d8e-9a57-0c2f4b8e1d11
 - A retry after the first request **failed** (it was refunded), or after the stored result is gone (1 hour, or a
   server restart), gives 409 `IDEMPOTENCY_KEY_USED`. Send a new key to try again.
 
-**Timeouts.** The server gives Gemini up to 60 s on these routes (`AI_IMAGE_TIMEOUT_MS` for the image call,
-`AI_TIMEOUT_MS` for the review). Set the app's HTTP timeout for routes 15 and 16 to **90 s**, so the app does not
+**Timeouts.** The server gives Gemini up to 10 minutes on these routes (`AI_IMAGE_TIMEOUT_MS` for the image call,
+`AI_TIMEOUT_MS` for the review). Set the app's HTTP timeout for routes 15 and 16, and for suggestion start, to **11 minutes**, so the app does not
 give up before the server has answered. With an `Idempotency-Key`, a retry after an app-side timeout is still safe.
 
 ### 14. POST `/ai/attributes`
@@ -996,7 +996,7 @@ within 1 hour after it succeeded, gets the **same session** back (same `sessionI
 call). After the first one failed (refunded) or its result is gone (1 hour, or a server restart), 409
 `IDEMPOTENCY_KEY_USED`; send a new key. A start that ended in 402, 429 or `INSUFFICIENT_WARDROBE` charged
 nothing, so retrying it with the same key simply runs again. Make a new key per tap; reuse it only for a retry.
-A start can take a while (up to 4 tries plus one re-ask, 60 s each), so with a key a retry after an app-side
+A start can take a while (up to 4 tries plus one re-ask, each bounded by AI_TIMEOUT_MS, 10 minutes by default), so with a key a retry after an app-side
 timeout is safe.
 
 - Response 200 `SuggestionResponse`, header `X-Credits-Balance` (balance after the session fee; for

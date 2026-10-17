@@ -43,7 +43,7 @@ class MirrorImageService(
             runCatching { storage.delete(Bucket.USER, key) }
             throw e
         }
-        return ItemImageResponse(key, storage.presignedUrl(key))
+        return ItemImageResponse(key, storage.presignedUrl(Bucket.USER, key))
     }
 
     /**

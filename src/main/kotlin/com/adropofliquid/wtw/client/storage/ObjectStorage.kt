@@ -1,6 +1,6 @@
 package com.adropofliquid.wtw.client.storage
 
-/** The two buckets (brief 5.4). USER is private (presigned GETs); LIBRARY is public read. */
+/** The two buckets (brief 5.4). Both private; clients read through presigned GETs. */
 enum class Bucket { USER, LIBRARY }
 
 class StoredObject(val bytes: ByteArray, val contentType: String?)
@@ -20,10 +20,8 @@ interface ObjectStorage {
     fun delete(bucket: Bucket, key: String)
     /** Deletes every object whose key starts with [prefix]. Returns how many were deleted. */
     fun deletePrefix(bucket: Bucket, prefix: String): Int
-    /** Time-limited GET URL for a private USER object (STORAGE_PRESIGN_TTL). */
-    fun presignedUrl(key: String): String
-    /** Public URL of a LIBRARY object (STORAGE_LIBRARY_PUBLIC_URL + key). */
-    fun publicUrl(key: String): String
+    /** Time-limited GET URL for a private object (STORAGE_PRESIGN_TTL). */
+    fun presignedUrl(bucket: Bucket, key: String): String
 }
 
 object Keys {

@@ -61,7 +61,7 @@ class LibraryService(
     private fun LibraryItem.toResponse() = LibraryItemResponse(
         id = id, source = source, name = name, category = category, description = description,
         vibes = vibes, styles = styles, brand = brand, keywords = keywords,
-        imageUrl = storage.publicUrl(imageKey), attributes = attributes,
+        imageUrl = storage.presignedUrl(Bucket.LIBRARY, imageKey), attributes = attributes,
     )
 
     companion object {

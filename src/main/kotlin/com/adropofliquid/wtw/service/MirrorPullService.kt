@@ -1,5 +1,6 @@
 package com.adropofliquid.wtw.service
 
+import com.adropofliquid.wtw.client.storage.Bucket
 import com.adropofliquid.wtw.client.storage.Keys
 import com.adropofliquid.wtw.client.storage.ObjectStorage
 import com.adropofliquid.wtw.domain.*
@@ -65,8 +66,8 @@ class MirrorPullService(
         val live = deletedAt == null
         val cutoutUrl = when {
             !live -> null
-            cutoutKey != null -> storage.presignedUrl(cutoutKey!!)
-            catalogId != null && catalogId in inLibrary -> storage.publicUrl(Keys.library(catalogId!!))
+            cutoutKey != null -> storage.presignedUrl(Bucket.USER, cutoutKey!!)
+            catalogId != null && catalogId in inLibrary -> storage.presignedUrl(Bucket.LIBRARY, Keys.library(catalogId!!))
             else -> null
         }
         return ItemDto(
@@ -75,7 +76,7 @@ class MirrorPullService(
             price = price, currency = currency, purchaseDate = purchaseDate?.toString(), brand = brand,
             archived = archived, catalogId = catalogId, source = source, poolConsent = poolConsent, poolFilter = poolFilter,
             cutoutUrl = cutoutUrl,
-            generatedUrl = if (live) generatedKey?.let(storage::presignedUrl) else null,
+            generatedUrl = if (live) generatedKey?.let { storage.presignedUrl(Bucket.USER, it) } else null,
         )
     }
 

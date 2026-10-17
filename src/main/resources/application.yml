@@ -46,9 +46,9 @@ wtw:
     vertex-location: ${VERTEX_LOCATION:us-central1}
     model-suggest: ${GEMINI_MODEL_SUGGEST:gemini-2.5-flash}
     model-attributes: ${GEMINI_MODEL_ATTRIBUTES:gemini-2.5-flash-lite}
-    model-image: ${GEMINI_MODEL_IMAGE:gemini-2.5-flash-image}
-    timeout-ms: ${AI_TIMEOUT_MS:60000}
-    image-timeout-ms: ${AI_IMAGE_TIMEOUT_MS:60000}
+    model-image: ${GEMINI_MODEL_IMAGE:gemini-3.1-flash-lite-image}
+    timeout-ms: ${AI_TIMEOUT_MS:600000}
+    image-timeout-ms: ${AI_IMAGE_TIMEOUT_MS:600000}
     mode: ${GEMINI_MODE:stub}
     local-model-url: ${LOCAL_MODEL_URL:http://localhost:11434}
     local-model-name: ${LOCAL_MODEL_NAME:qwen2.5vl:3b}
@@ -64,7 +64,6 @@ wtw:
     secret-key: ${STORAGE_SECRET_KEY:}
     bucket-user: ${STORAGE_BUCKET_USER:wtw-user}
     bucket-library: ${STORAGE_BUCKET_LIBRARY:wtw-library}
-    library-public-url: ${STORAGE_LIBRARY_PUBLIC_URL:}
     presign-ttl: ${STORAGE_PRESIGN_TTL:7d}
     # Dev only: local-filesystem storage root and the base URL its files are served from.
     local-dir: ${STORAGE_LOCAL_DIR:.local-storage}

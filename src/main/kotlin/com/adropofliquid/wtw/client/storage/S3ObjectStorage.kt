@@ -72,9 +72,7 @@ class S3ObjectStorage(private val props: WtwProperties) : ObjectStorage {
         return count
     }
 
-    override fun presignedUrl(key: String): String = presigner.presignGetObject {
-        it.signatureDuration(s.presignTtl).getObjectRequest(GetObjectRequest.builder().bucket(s.bucketUser).key(key).build())
+    override fun presignedUrl(bucket: Bucket, key: String): String = presigner.presignGetObject {
+        it.signatureDuration(s.presignTtl).getObjectRequest(GetObjectRequest.builder().bucket(name(bucket)).key(key).build())
     }.url().toString()
-
-    override fun publicUrl(key: String) = "${s.libraryPublicUrl.trimEnd('/')}/$key"
 }
