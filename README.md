@@ -188,9 +188,10 @@ git remote add dokku dokku@<host>:wtw-server && git push dokku main
 The old app `wtw` and its database stay up, untouched, until the copy is verified.
 
 **rembg output size:** `imgbg-remover/main.py` reads `MAX_SIDE` (default **600**), the longest side of the returned
-cut-out in px. 600 matches the server's `IMAGE_MAX_SIDE`. Deploy the remover from its own repo
-(`git@github.com:adropofliquid/imgbg-remover.git`, commit with the `MAX_SIDE` change or later). It needs about 2.5 GB
-of RAM while it works (BiRefNet-lite) and handles one photo at a time (~9 s on an M-series Mac).
+cut-out in px. 600 matches the server's `IMAGE_MAX_SIDE`. It shrinks only, never upscales. Deploy the remover from its own repo
+(`git@github.com:adropofliquid/imgbg-remover.git`, `main`). It runs **u2net**: peak ~1.5 GB RAM, 1.3–2 s per
+app-sized photo on the 2 vCPU test box (cap it at ~2.3 GB). BiRefNet-lite gives cleaner edges but was OOM-killed at
+3.5 GB on that box. Its `app.json` waits for `/docs` before Dokku routes traffic (the model loads after the port opens).
 
 ## Health
 `GET /health` → `{"status":"UP"}` after a DB ping; 503 `{"status":"DOWN"}` otherwise. Public. The Docker image has a `HEALTHCHECK` too.
