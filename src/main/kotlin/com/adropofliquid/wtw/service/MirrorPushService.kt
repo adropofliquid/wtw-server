@@ -1,5 +1,6 @@
 package com.adropofliquid.wtw.service
 
+import com.adropofliquid.wtw.config.msSince
 import com.adropofliquid.wtw.client.storage.Bucket
 import com.adropofliquid.wtw.client.storage.Keys
 import com.adropofliquid.wtw.client.storage.ObjectStorage
@@ -46,12 +47,18 @@ class MirrorPushService(
         if (req.rowCount() > max) throw ApiException.tooLarge("More than $max rows in one push")
         val now = Instant.now()
         val run = Run(uid, now)
+        val start = System.nanoTime()
         val results = tx.execute { run.all(req) }!!
+        val txMs = msSince(start)
         // Storage is not transactional: delete only once the tombstones are committed.
         run.keysToDelete.forEach { key ->
             runCatching { storage.delete(Bucket.USER, key) }
                 .onFailure { log.warn("upstream=storage delete failed uid={} err={}", uidHash(uid), it.javaClass.simpleName) }
         }
+        fun RowResults.s() = "$upserted/$stale/${rejected.size}"
+        log.info("mirror push rows={} items={} outfits={} planned={} wear={} lists={} (upserted/stale/rejected) imageDeletes={} txMs={} deleteMs={}",
+            req.rowCount(), results.items.s(), results.outfits.s(), results.planned.s(), results.wear.s(), results.packingLists.s(),
+            run.keysToDelete.size, txMs, msSince(start) - txMs)
         return MirrorPushResponse(now.toEpochMilli(), results)
     }
 

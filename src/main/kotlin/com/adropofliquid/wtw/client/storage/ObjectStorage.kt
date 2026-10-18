@@ -1,5 +1,7 @@
 package com.adropofliquid.wtw.client.storage
 
+import com.adropofliquid.wtw.config.RequestLoggingFilter.Companion.uidHash
+
 /** The two buckets (brief 5.4). Both private; clients read through presigned GETs. */
 enum class Bucket { USER, LIBRARY }
 
@@ -28,4 +30,6 @@ object Keys {
     fun userPrefix(uid: String) = "users/$uid/"
     fun itemImage(uid: String, itemId: String, kind: String) = "users/$uid/items/$itemId/$kind.webp"
     fun library(libraryId: String) = "library/$libraryId.webp"
+    /** A key safe to log: the uid in `users/{uid}/` is replaced by its hash. */
+    fun forLog(key: String) = key.replace(Regex("^users/([^/]+)/")) { "users/${uidHash(it.groupValues[1])}/" }
 }

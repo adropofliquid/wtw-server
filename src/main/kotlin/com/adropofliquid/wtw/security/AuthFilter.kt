@@ -1,9 +1,12 @@
 package com.adropofliquid.wtw.security
 
+import com.adropofliquid.wtw.config.RequestLoggingFilter.Companion.uidHash
+import com.adropofliquid.wtw.config.msSince
 import com.adropofliquid.wtw.service.UserProfileService
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import org.slf4j.MDC
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.web.filter.OncePerRequestFilter
@@ -21,6 +24,7 @@ class AuthFilter(
 
     override fun doFilterInternal(req: HttpServletRequest, res: HttpServletResponse, chain: FilterChain) {
         val header = req.getHeader("Authorization")
+        val start = System.nanoTime()
         val uid = when {
             header != null && header.startsWith("Bearer ", ignoreCase = true) -> verifier.verify(header.substring(7).trim())
             devBypass -> req.getHeader("X-Dev-User-Id")?.takeIf { it.isNotBlank() && it.length <= 128 }
@@ -28,11 +32,17 @@ class AuthFilter(
         }
         if (uid != null) {
             profiles.ensureStub(uid)
+            // Token check + stub row: the first Firebase check fetches Google's keys, so it can be slow.
+            req.setAttribute(AUTH_MS_ATTRIBUTE, msSince(start))
+            MDC.put("uid", uidHash(uid))
             SecurityContextHolder.getContext().authentication = UsernamePasswordAuthenticationToken.authenticated(uid, null, emptyList())
             req.setAttribute(UID_ATTRIBUTE, uid)
         }
         chain.doFilter(req, res)
     }
 
-    companion object { const val UID_ATTRIBUTE = "wtw.uid" }
+    companion object {
+        const val UID_ATTRIBUTE = "wtw.uid"
+        const val AUTH_MS_ATTRIBUTE = "wtw.authMs"
+    }
 }

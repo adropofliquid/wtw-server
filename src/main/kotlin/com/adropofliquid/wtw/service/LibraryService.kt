@@ -1,5 +1,7 @@
 package com.adropofliquid.wtw.service
 
+import org.slf4j.LoggerFactory
+import com.adropofliquid.wtw.config.timed
 import com.adropofliquid.wtw.client.storage.Bucket
 import com.adropofliquid.wtw.client.storage.ObjectStorage
 import com.adropofliquid.wtw.client.storage.StoredObject
@@ -22,17 +24,26 @@ class LibraryService(
     private val profiles: UserProfileRepository,
     private val storage: ObjectStorage,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
     private val cache = Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(10)).build<String, Map<String, LibraryItem>>()
 
     /** Active rows by id, starters first, then by name (stable order for the app). */
     private fun active(): Map<String, LibraryItem> = cache.get("all") {
+        log.timed("library cache load", { m: Map<String, LibraryItem> -> "rows=${m.size}" }) { load() }
+    }
+
+    private fun load(): Map<String, LibraryItem> =
         repo.findByActiveTrue()
             .sortedWith(compareBy<LibraryItem>({ it.source != STARTER }, { it.name.lowercase() }, { it.id }))
             .associateBy { it.id }
-    }
 
-    /** Route 11. */
-    fun all(): List<LibraryItemResponse> = active().values.map { it.toResponse() }
+    /** Route 11. Most of the time is presigning one image URL per item. */
+    fun all(): List<LibraryItemResponse> {
+        val rows = active()
+        return log.timed("library list presign", { r: List<LibraryItemResponse> -> "items=${r.size}" }) {
+            rows.values.map { it.toResponse() }
+        }
+    }
 
     /**
      * Route 12, same filter as the old `UserOnboardingService.getStarterItems`: each filter applies only when

@@ -1,5 +1,7 @@
 package com.adropofliquid.wtw.service
 
+import org.slf4j.LoggerFactory
+import com.adropofliquid.wtw.config.msSince
 import com.adropofliquid.wtw.client.storage.Bucket
 import com.adropofliquid.wtw.client.storage.Keys
 import com.adropofliquid.wtw.client.storage.ObjectStorage
@@ -23,13 +25,16 @@ class MirrorImageService(
     txManager: PlatformTransactionManager,
 ) {
     private val tx = TransactionTemplate(txManager)
+    private val log = LoggerFactory.getLogger(javaClass)
 
     fun upload(uid: String, itemId: String, kind: String, bytes: ByteArray): ItemImageResponse {
         if (kind != MirrorPushService.CUTOUT && kind != MirrorPushService.GENERATED) {
             throw ApiException.validation("kind must be cutout or generated")
         }
         check(uid, itemId)
+        val start = System.nanoTime()
         val webp = images.toWebp(bytes)
+        log.info("mirror image convert kind={} inBytes={} outBytes={} ms={}", kind, bytes.size, webp.size, msSince(start))
         val key = Keys.itemImage(uid, itemId, kind)
         storage.put(Bucket.USER, key, webp, "image/webp")
         try {

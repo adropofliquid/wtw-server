@@ -1,5 +1,7 @@
 package com.adropofliquid.wtw.client.storage
 
+import com.adropofliquid.wtw.config.timed
+import org.slf4j.LoggerFactory
 import com.adropofliquid.wtw.config.WtwProperties
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
@@ -14,6 +16,8 @@ import kotlin.io.path.*
 class LocalObjectStorage(private val props: WtwProperties) : ObjectStorage {
     private val root: Path = Paths.get(props.storage.localDir).toAbsolutePath().normalize()
 
+    private val log = LoggerFactory.getLogger("storage")
+
     private fun dir(bucket: Bucket) = root.resolve(bucket.name.lowercase())
 
     fun path(bucket: Bucket, key: String): Path {
@@ -23,16 +27,18 @@ class LocalObjectStorage(private val props: WtwProperties) : ObjectStorage {
     }
 
     override fun put(bucket: Bucket, key: String, bytes: ByteArray, contentType: String, cacheControl: String?) {
-        val p = path(bucket, key)
-        p.parent.createDirectories()
-        p.writeBytes(bytes)
+        log.timed("storage put", { _: Any? -> "bucket=$bucket key=${Keys.forLog(key)} bytes=${bytes.size}" }) {
+            val p = path(bucket, key)
+            p.parent.createDirectories()
+            p.writeBytes(bytes)
+        }
     }
 
-    override fun get(bucket: Bucket, key: String): StoredObject? {
-        val p = path(bucket, key)
-        if (!p.isRegularFile()) return null
-        return StoredObject(p.readBytes(), contentTypeOf(key))
-    }
+    override fun get(bucket: Bucket, key: String): StoredObject? =
+        log.timed("storage get", { o: StoredObject? -> "bucket=$bucket key=${Keys.forLog(key)} bytes=${o?.bytes?.size ?: "missing"}" }) {
+            val p = path(bucket, key)
+            if (p.isRegularFile()) StoredObject(p.readBytes(), contentTypeOf(key)) else null
+        }
 
     override fun exists(bucket: Bucket, key: String) = path(bucket, key).isRegularFile()
 

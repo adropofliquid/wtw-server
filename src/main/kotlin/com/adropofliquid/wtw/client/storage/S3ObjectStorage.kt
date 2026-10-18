@@ -1,5 +1,7 @@
 package com.adropofliquid.wtw.client.storage
 
+import com.adropofliquid.wtw.config.timed
+import org.slf4j.LoggerFactory
 import com.adropofliquid.wtw.config.WtwProperties
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
@@ -35,20 +37,27 @@ class S3ObjectStorage(private val props: WtwProperties) : ObjectStorage {
         .apply { if (s.endpoint.isNotBlank()) endpointOverride(URI(s.endpoint)) }
         .build()
 
+    private val log = LoggerFactory.getLogger("storage")
+
     private fun name(bucket: Bucket) = if (bucket == Bucket.USER) s.bucketUser else s.bucketLibrary
 
     override fun put(bucket: Bucket, key: String, bytes: ByteArray, contentType: String, cacheControl: String?) {
         val req = PutObjectRequest.builder().bucket(name(bucket)).key(key).contentType(contentType)
             .apply { if (cacheControl != null) cacheControl(cacheControl) }.build()
-        client.putObject(req, RequestBody.fromBytes(bytes))
+        log.timed("storage put", { _: Any? -> "bucket=$bucket key=${Keys.forLog(key)} bytes=${bytes.size}" }) {
+            client.putObject(req, RequestBody.fromBytes(bytes))
+        }
     }
 
-    override fun get(bucket: Bucket, key: String): StoredObject? = try {
-        val r = client.getObjectAsBytes(GetObjectRequest.builder().bucket(name(bucket)).key(key).build())
-        StoredObject(r.asByteArray(), r.response().contentType())
-    } catch (_: NoSuchKeyException) {
-        null
-    }
+    override fun get(bucket: Bucket, key: String): StoredObject? =
+        log.timed("storage get", { o: StoredObject? -> "bucket=$bucket key=${Keys.forLog(key)} bytes=${o?.bytes?.size ?: "missing"}" }) {
+            try {
+                val r = client.getObjectAsBytes(GetObjectRequest.builder().bucket(name(bucket)).key(key).build())
+                StoredObject(r.asByteArray(), r.response().contentType())
+            } catch (_: NoSuchKeyException) {
+                null
+            }
+        }
 
     override fun exists(bucket: Bucket, key: String): Boolean = try {
         client.headObject(HeadObjectRequest.builder().bucket(name(bucket)).key(key).build()); true
@@ -59,10 +68,15 @@ class S3ObjectStorage(private val props: WtwProperties) : ObjectStorage {
     }
 
     override fun delete(bucket: Bucket, key: String) {
-        client.deleteObject(DeleteObjectRequest.builder().bucket(name(bucket)).key(key).build())
+        log.timed("storage delete", { _: Any? -> "bucket=$bucket key=${Keys.forLog(key)}" }) {
+            client.deleteObject(DeleteObjectRequest.builder().bucket(name(bucket)).key(key).build())
+        }
     }
 
-    override fun deletePrefix(bucket: Bucket, prefix: String): Int {
+    override fun deletePrefix(bucket: Bucket, prefix: String): Int =
+        log.timed("storage deletePrefix", { n: Int -> "bucket=$bucket prefix=${Keys.forLog(prefix)} deleted=$n" }) { deleteAll(bucket, prefix) }
+
+    private fun deleteAll(bucket: Bucket, prefix: String): Int {
         var count = 0
         client.listObjectsV2Paginator(ListObjectsV2Request.builder().bucket(name(bucket)).prefix(prefix).build())
             .contents().map { it.key() }.chunked(1000).forEach { keys ->

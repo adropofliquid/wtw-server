@@ -53,7 +53,7 @@ class WeatherApiClient(private val props: WtwProperties) : WeatherClient {
             throw if (timeout) ApiException.upstreamTimeout("Weather", e) else ApiException.upstreamFailed("Weather", e)
         }
         return try {
-            map(body)
+            map(body).also { log.info("upstream=weatherapi ok days={} ms={}", days, ms()) }
         } catch (e: Exception) {
             log.warn("upstream=weatherapi status=bad_body ms={}", ms())
             throw ApiException.upstreamFailed("Weather", e)

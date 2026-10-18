@@ -1,5 +1,7 @@
 package com.adropofliquid.wtw.service
 
+import com.adropofliquid.wtw.config.timed
+import com.adropofliquid.wtw.config.msSince
 import com.adropofliquid.wtw.client.gemini.ChatMessage
 import com.adropofliquid.wtw.client.gemini.GeminiCallLog
 import com.adropofliquid.wtw.client.gemini.GeminiClient
@@ -106,7 +108,7 @@ class SuggestionService(
         }
 
         val aliasById = aliases(wardrobe.map { it.id!! })
-        val stylistNotes = notes.block(uid, wardrobe, aliasById, session.style)
+        val stylistNotes = log.timed("suggest stylist notes", { n: String -> "chars=${n.length}" }) { notes.block(uid, wardrobe, aliasById, session.style) }
         val history = listOf(
             ChatMessage("system", prompts.sessionSystem),
             ChatMessage("user", prompts.initialUserMessage(
@@ -250,6 +252,7 @@ class SuggestionService(
         route: String, history: List<ChatMessage>, aliasById: Map<String, String>, wardrobeIds: Set<String>, names: Map<String, String>,
     ): Turn {
         val aliasToId = aliasById.entries.associate { (id, alias) -> alias to id }
+        val start = System.nanoTime()
         var current = history + ChatMessage("assistant", chat(route, history))
         var parsed = parse(current.last().content, aliasToId)
         if (parsed is OutfitReply) {
@@ -270,6 +273,9 @@ class SuggestionService(
         val p = parsed
         if (p is OutfitReply) parsed = p.copy(review = scrubAliases(p.review, names), occasion = scrubAliases(p.occasion, names))
         if (p is Refusal) parsed = p.copy(reason = scrubAliases(p.reason, names))
+        log.info("suggest turn route={} result={} items={} wardrobe={} promptChars={} modelCalls={} ms={}",
+            route, if (parsed is OutfitReply) "outfit" else "refusal", (parsed as? OutfitReply)?.ids?.size ?: 0, wardrobeIds.size,
+            history.sumOf { it.content.length }, current.count { it.role == "assistant" } - history.count { it.role == "assistant" }, msSince(start))
         return Turn(parsed, current)
     }
 

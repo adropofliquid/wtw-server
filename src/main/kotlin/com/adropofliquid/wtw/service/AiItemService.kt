@@ -1,5 +1,7 @@
 package com.adropofliquid.wtw.service
 
+import org.slf4j.LoggerFactory
+import com.adropofliquid.wtw.config.timed
 import com.adropofliquid.wtw.client.rembg.BackgroundRemovalClient
 import com.adropofliquid.wtw.client.gemini.GeminiCallLog
 import com.adropofliquid.wtw.client.gemini.GeminiClient
@@ -34,11 +36,14 @@ class AiItemService(
     private val json: JsonMapper,
     private val idempotency: IdempotencyService,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
     /** Route 14: the superset ItemAttributes object (camelCase) plus `filter`. */
     fun attributes(uid: String, photo: MultipartFile?): Map<String, Any?> {
         val bytes = readPhoto(photo)
         caps.hit(uid, "attributes", config.ledger().attributesDailyCap)
-        val r = gemini.readImage(props.ai.modelAttributes, prompts.attributes, forGemini(bytes), "image/jpeg", ATTRIBUTES_SCHEMA)
+        val small = log.timed("ai image prep", { b: ByteArray -> "inBytes=${bytes.size} outBytes=${b.size}" }) { forGemini(bytes) }
+        val r = gemini.readImage(props.ai.modelAttributes, prompts.attributes, small, "image/jpeg", ATTRIBUTES_SCHEMA)
         GeminiCallLog.log("ai/attributes", r.usage, 0)
         val raw = parseJson(r.text) ?: throw ApiException.upstreamFailed("Gemini", "attributes reply is not JSON")
         return normalize(raw)
@@ -59,9 +64,12 @@ class AiItemService(
         val charge = ledger.spend(uid, Reason.AI_IMAGE, cost, ref)
         if (!charge.charged) throw IdempotencyService.keyUsed()
         try {
-            val r = gemini.editImage(props.ai.modelImage, prompts.generateImage, forGemini(bytes), "image/jpeg")
+            val small = log.timed("ai image prep", { b: ByteArray -> "inBytes=${bytes.size} outBytes=${b.size}" }) { forGemini(bytes) }
+            val r = gemini.editImage(props.ai.modelImage, prompts.generateImage, small, "image/jpeg")
             GeminiCallLog.log("ai/generate-image", r.usage, cost)
-            val png = runCatching { images.toPng(r.bytes) }.getOrElse { throw ApiException.upstreamFailed("Gemini", "image unreadable", it) }
+            val png = log.timed("ai image to png", { p: ByteArray -> "inBytes=${r.bytes.size} outBytes=${p.size}" }) {
+                runCatching { images.toPng(r.bytes) }.getOrElse { throw ApiException.upstreamFailed("Gemini", "image unreadable", it) }
+            }
             return Metered(charge.state.balance, png)
         } catch (e: Exception) {
             ledger.refund(uid, charge)

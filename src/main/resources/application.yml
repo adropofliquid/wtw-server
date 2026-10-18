@@ -7,6 +7,8 @@ spring:
     open-in-view: false
     hibernate.ddl-auto: validate
     properties.hibernate.jdbc.time_zone: UTC
+    # Logs any SQL statement slower than this (logger org.hibernate.SQL_SLOW, INFO).
+    properties.hibernate.log_slow_query: ${LOG_SLOW_QUERY_MS:200}
   flyway.enabled: true
   servlet.multipart:
     max-file-size: ${UPLOAD_MAX_BYTES:10485760}
@@ -29,8 +31,11 @@ management:
     probes.enabled: false
 
 logging:
+  # rid = request id, uid = uid hash: grep either to see every line of one request or one user.
+  pattern.level: "%5p [%X{rid:-}/%X{uid:-}]"
   level:
     root: ${LOG_LEVEL:INFO}
+    org.hibernate.SQL_SLOW: INFO
     org.hibernate.orm.deprecation: WARN
 
 wtw:

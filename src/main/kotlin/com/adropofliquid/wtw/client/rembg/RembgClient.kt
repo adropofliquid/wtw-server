@@ -1,5 +1,6 @@
 package com.adropofliquid.wtw.client.rembg
 
+import com.adropofliquid.wtw.config.msSince
 import com.adropofliquid.wtw.config.WtwProperties
 import com.adropofliquid.wtw.service.ApiException
 import org.slf4j.LoggerFactory
@@ -41,8 +42,11 @@ class RembgClient(private val props: WtwProperties) : BackgroundRemovalClient {
             log.warn("upstream=rembg busy waitedMs={}", (System.nanoTime() - queued) / 1_000_000)
             throw ApiException.upstreamTimeout("Background removal")
         }
+        val waitedMs = msSince(queued)
         try {
-            return call(photo)
+            return call(photo).also {
+                log.info("upstream=rembg ok waitMs={} callMs={} inBytes={} outBytes={}", waitedMs, msSince(queued) - waitedMs, photo.size, it.size)
+            }
         } finally {
             line.release()
         }

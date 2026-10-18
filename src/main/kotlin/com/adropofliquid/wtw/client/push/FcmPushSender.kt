@@ -24,6 +24,7 @@ class FcmPushSender(private val firebaseApp: FirebaseApp) : PushSender {
                 .setToken(token)
                 .build()
             FirebaseMessaging.getInstance(firebaseApp).send(msg)
+            log.info("upstream=fcm ok ms={}", (System.nanoTime() - start) / 1_000_000)
             PushOutcome.SENT
         } catch (e: FirebaseMessagingException) {
             val code = e.messagingErrorCode

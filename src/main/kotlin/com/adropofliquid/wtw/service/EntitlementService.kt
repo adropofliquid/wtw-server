@@ -21,7 +21,10 @@ class EntitlementService(private val rc: RevenueCatClient, props: WtwProperties)
         cache.getIfPresent(uid)?.let { return it }
         val start = System.nanoTime()
         return try {
-            rc.isPremium(uid).also { cache.put(uid, it) }
+            rc.isPremium(uid).also {
+                cache.put(uid, it)
+                log.info("upstream=revenuecat ok premium={} ms={}", it, (System.nanoTime() - start) / 1_000_000)
+            }
         } catch (e: Exception) {
             log.warn("upstream=revenuecat failed uid={} ms={} err={}", uidHash(uid), (System.nanoTime() - start) / 1_000_000, e.javaClass.simpleName)
             false

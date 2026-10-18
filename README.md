@@ -114,6 +114,7 @@ Live numbers (credits, costs, caps, pack sizes, notification copy) are **not** e
 | `AUTH_DEV_BYPASS_ENABLED` | false (dev: true) | Accept `X-Dev-User-Id`. Never in prod. |
 | `AUTH_DEV_TOKEN`, `AUTH_DEV_UID` | `dev-token`, `dev-user` | dev token verifier |
 | `LOG_LEVEL` | INFO | Root log level |
+| `LOG_SLOW_QUERY_MS` | 200 | Any SQL statement slower than this is logged (logger `org.hibernate.SQL_SLOW`) |
 | `LIBRARY_SEED_DIR`, `OLD_S3_BUCKET` | —, `whatshouldiwearr` | `--seed-library` only |
 | `OLD_DB_URL`, `OLD_DB_USER`, `OLD_DB_PASS` | — | `--data-copy` only (read-only session) |
 | `OLD_S3_ACCESS_KEY`, `OLD_S3_SECRET`, `OLD_S3_REGION` | —, —, `eu-west-2` | `--data-copy` and `--seed-library` (old images) |
@@ -192,6 +193,28 @@ cut-out in px. 600 matches the server's `IMAGE_MAX_SIDE`. It shrinks only, never
 (`git@github.com:adropofliquid/imgbg-remover.git`, `main`). It runs **u2net**: peak ~1.5 GB RAM, 1.3–2 s per
 app-sized photo on the 2 vCPU test box (cap it at ~2.3 GB). BiRefNet-lite gives cleaner edges but was OOM-killed at
 3.5 GB on that box. Its `app.json` waits for `/docs` before Dokku routes traffic (the model loads after the port opens).
+
+## Logs: finding where a request spent its time
+Every line carries `[rid/uid]`: a short request id and the uid hash. `grep <rid>` shows one request step by step;
+`grep <uid hash>` shows one user. Never bodies, tokens or raw uids (user storage keys are logged with the hash).
+
+| Line (logger) | When | Fields |
+|---|---|---|
+| `GET /library 200 265ms auth=167ms in=0B out=413664B` (`request`) | every request | total time, sign-in check time (first Firebase check fetches Google's keys), bytes in and out |
+| `upstream=rembg ok waitMs= callMs=` | background removal | time in the server's line, time in rembg, bytes |
+| `gemini route= model= ms= inTokens= outTokens=` | every Gemini call | per call, retries included |
+| `suggest turn route= result= items= wardrobe= promptChars= modelCalls= ms=` | each suggestion turn | whole turn, all model calls |
+| `suggest stylist notes ms=` | suggestion start | the history lookup before the model call |
+| `ai image prep` / `ai image to png` | routes 14, 15 | resize before Gemini, PNG after |
+| `mirror push ... txMs= deleteMs=` / `mirror pull ... queryMs= buildMs=` | sync | rows per table, DB time, image deletes or URL signing |
+| `mirror image convert kind= inBytes= outBytes= ms=` | route 10 | WebP conversion; the `storage put` line follows |
+| `storage put/get/delete/deletePrefix ms= bucket= key= bytes=` (`storage`) | every storage call | S3 or local disk |
+| `library cache load rows=` / `library list presign items=` | route 11 | DB load (every 10 min), URL signing per request |
+| `upstream=weatherapi ok` / `upstream=revenuecat ok` / `upstream=fcm ok` | each call | `ms=`; failures log `failed` at WARN |
+| `org.hibernate.SQL_SLOW` | SQL over `LOG_SLOW_QUERY_MS` | the statement and its time |
+
+A step that fails logs `<step> failed ms= err=` at WARN. New slow steps: wrap them in `log.timed("<step>", { result -> "k=v" }) { ... }`
+(`config/Timing.kt`).
 
 ## Health
 `GET /health` → `{"status":"UP"}` after a DB ping; 503 `{"status":"DOWN"}` otherwise. Public. The Docker image has a `HEALTHCHECK` too.

@@ -1,5 +1,7 @@
 package com.adropofliquid.wtw.service
 
+import org.slf4j.LoggerFactory
+import com.adropofliquid.wtw.config.msSince
 import com.adropofliquid.wtw.client.storage.Bucket
 import com.adropofliquid.wtw.client.storage.Keys
 import com.adropofliquid.wtw.client.storage.ObjectStorage
@@ -30,9 +32,12 @@ class MirrorPullService(
     private val library: LibraryItemRepository,
     private val storage: ObjectStorage,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
     @Transactional(readOnly = true)
     fun pull(uid: String, since: Long): MirrorPullResponse {
         if (since < 0) throw ApiException.validation("since must be 0 or more")
+        val start = System.nanoTime()
         val serverTime = Instant.now()
         val restore = since == 0L
         val after = Instant.ofEpochMilli(since)
@@ -50,6 +55,7 @@ class MirrorPullService(
         // Catalog items with no own cut-out show the library image; only ids that exist in the library.
         val catalogIds = itemRows.filter { it.cutoutKey == null && it.deletedAt == null }.mapNotNull { it.catalogId }.distinct()
         val inLibrary = chunked(catalogIds) { library.findAllById(it) }.map { it.id }.toSet()
+        val queryMs = msSince(start)
 
         return MirrorPullResponse(
             serverTime = serverTime.toEpochMilli(),
@@ -59,7 +65,11 @@ class MirrorPullService(
             wear = wearRows.map { WearDto(it.date.toString(), it.status, it.outfitId, it.itemIds, it.createdAt.ms(), it.updatedAt.ms(), it.deletedAt?.ms()) },
             packingLists = listRows.map { it.toDto(itemsByList[it.id].orEmpty()) },
             suggestions = suggestionRows.map { it.toDto(it.sessionId?.let(sessionById::get)) },
-        )
+        ).also {
+            log.info("mirror pull restore={} items={} outfits={} planned={} wear={} lists={} suggestions={} queryMs={} buildMs={}",
+                restore, it.items.size, it.outfits.size, it.planned.size, it.wear.size, it.packingLists.size, it.suggestions.size,
+                queryMs, msSince(start) - queryMs)
+        }
     }
 
     private fun MirrorItem.toDto(inLibrary: Set<String>): ItemDto {
