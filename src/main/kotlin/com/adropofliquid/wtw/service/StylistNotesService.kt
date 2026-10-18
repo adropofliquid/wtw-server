@@ -40,8 +40,8 @@ class StylistNotesService(
     fun block(uid: String, wardrobe: List<WardrobeEntryDto>, aliasById: Map<String, String>, requestStyle: String?): String = try {
         val profile = profiles.findById(uid).orElse(null)
         val style = requestStyle?.ifBlank { null } ?: profile?.style
-        val vibes = profile?.vibes.orEmpty()
-        val events = profile?.events.orEmpty()
+        val vibes = Vocab.vibes(profile?.vibes.orEmpty())
+        val events = Vocab.occasions(profile?.events.orEmpty())
         val rows = history.get(uid) { suggestions.findTop100ByUserIdOrderByCreatedAtDesc(it) }
         val attrsById = wardrobe.associate { it.id!! to it.attributes.orEmpty() }
         render(style, vibes, events, rows, attrsById, aliasById)

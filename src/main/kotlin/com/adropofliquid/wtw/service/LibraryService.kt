@@ -36,18 +36,17 @@ class LibraryService(
 
     /**
      * Route 12, same filter as the old `UserOnboardingService.getStarterItems`: each filter applies only when
-     * the profile field is set. No style and no vibes → every starter.
+     * the profile field is set. No style and no vibes → every starter. Old vibe words are mapped first. When the
+     * vibes match nothing, the vibe filter is dropped; when style matches nothing too, every starter.
      */
     fun starterItems(uid: String): List<StarterItemResponse> {
         val profile = profiles.findById(uid).orElse(null)
         val style = profile?.style?.takeIf { it.isNotBlank() }
-        val vibes = profile?.vibes.orEmpty().map { it.trim() }.filter { it.isNotBlank() }.toSet()
-        return active().values.asSequence()
-            .filter { it.source == STARTER }
-            .filter { style == null || style in it.styles }
-            .filter { vibes.isEmpty() || it.vibes.any { v -> v in vibes } }
+        val vibes = Vocab.vibes(profile?.vibes.orEmpty()).toSet()
+        val starters = active().values.filter { it.source == STARTER }
+        val byStyle = starters.filter { style == null || style in it.styles }.ifEmpty { starters }
+        return byStyle.filter { vibes.isEmpty() || it.vibes.any { v -> v in vibes } }.ifEmpty { byStyle }
             .map { StarterItemResponse(it.id, it.fileName ?: it.name, it.description, it.category, it.vibes, it.styles) }
-            .toList()
     }
 
     /** Route 13: a Library image by item id. 404 if the id is not an active Library item or its image is missing. */

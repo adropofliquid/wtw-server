@@ -88,7 +88,7 @@ class SuggestionService(
         val now = Instant.now()
         val session = AiSession(
             id = "sess_${UUID.randomUUID()}", userId = uid, context = context, targetDate = targetDate,
-            dayType = req.dayType?.trim()?.ifBlank { null }, comfort = req.comfort?.trim()?.ifBlank { null },
+            dayType = req.dayType?.trim()?.ifBlank { null }?.let(Vocab::occasion), comfort = req.comfort?.trim()?.ifBlank { null }?.let(Vocab::comfort),
             note = req.note?.trim()?.ifBlank { null }?.take(MAX_TEXT), style = req.style?.trim()?.ifBlank { null },
             weather = req.weather?.let { w -> linkedMapOf("date" to w.date, "code" to w.code, "maxC" to w.maxC, "minC" to w.minC, "precipChance" to w.precipChance) },
             wardrobeSnapshot = wardrobe.map { linkedMapOf("id" to it.id, "category" to it.category, "attributes" to it.attributes) },
@@ -118,7 +118,8 @@ class SuggestionService(
         val charge = ledger.spend(uid, Reason.OUTFIT_SUGGESTION, config.ledger().costOutfitSuggestion, ref = ref ?: session.id)
         if (!charge.charged) throw IdempotencyService.keyUsed()
         val response = try {
-            val turn = converse("suggest/start", history, aliasById, wardrobe.map { it.id!! }.toSet())
+            val names = nameByAlias(aliasById, wardrobe.associate { it.id!! to it.attributes })
+            val turn = converse("suggest/start", history, aliasById, wardrobe.map { it.id!! }.toSet(), names)
             session.attemptNumber = 1
             session.conversationHistory = turn.history.map { mapOf("role" to it.role, "content" to it.content) }
             tx.execute { persist(session, turn) }!!
@@ -162,9 +163,9 @@ class SuggestionService(
             ))
         }
 
-        val (aliasById, wardrobeIds) = sessionAliases(session)
+        val (aliasById, wardrobeIds, names) = sessionAliases(session)
         val history = storedHistory(session) + ChatMessage("user", prompts.rejectionMessage(rejection, feedback))
-        val turn = converse("suggest/next", history, aliasById, wardrobeIds)
+        val turn = converse("suggest/next", history, aliasById, wardrobeIds, names)
 
         session.attemptNumber += 1
         session.conversationHistory = turn.history.map { mapOf("role" to it.role, "content" to it.content) }
@@ -191,9 +192,9 @@ class SuggestionService(
         val stored = storedHistory(session)
         // The app's "Show me anyway" (after LOW_CONFIDENCE) calls refine: then the model must return an outfit.
         val forceShow = stored.lastOrNull { it.role == "assistant" }?.let { parseJson(it.content)?.get("lowConfidence") == true } ?: false
-        val (aliasById, wardrobeIds) = sessionAliases(session)
+        val (aliasById, wardrobeIds, names) = sessionAliases(session)
         val history = stored + ChatMessage("user", prompts.refinementMessage(m, forceShow, feedback))
-        val turn = converse("suggest/refine", history, aliasById, wardrobeIds)
+        val turn = converse("suggest/refine", history, aliasById, wardrobeIds, names)
 
         val now = Instant.now()
         session.attemptNumber = 1 // a refinement starts a fresh count (old server)
@@ -243,8 +244,11 @@ class SuggestionService(
     /**
      * One model turn: call, parse, translate aliases, validate ids (one corrective re-ask, then strip).
      * Unparseable reply or an outfit with no valid item → 502 UPSTREAM_FAILED (nothing stored; start refunds its fee).
+     * Aliases the model wrote into the user-facing text are swapped for item names (`names`: alias → name).
      */
-    private fun converse(route: String, history: List<ChatMessage>, aliasById: Map<String, String>, wardrobeIds: Set<String>): Turn {
+    private fun converse(
+        route: String, history: List<ChatMessage>, aliasById: Map<String, String>, wardrobeIds: Set<String>, names: Map<String, String>,
+    ): Turn {
         val aliasToId = aliasById.entries.associate { (id, alias) -> alias to id }
         var current = history + ChatMessage("assistant", chat(route, history))
         var parsed = parse(current.last().content, aliasToId)
@@ -263,7 +267,19 @@ class SuggestionService(
             }
             if (parsed is OutfitReply && parsed.ids.isEmpty()) throw ApiException.upstreamFailed("Gemini", "outfit with no valid items")
         }
+        val p = parsed
+        if (p is OutfitReply) parsed = p.copy(review = scrubAliases(p.review, names), occasion = scrubAliases(p.occasion, names))
+        if (p is Refusal) parsed = p.copy(reason = scrubAliases(p.reason, names))
         return Turn(parsed, current)
+    }
+
+    /** "(I9)" is dropped; a bare "I9" becomes the item's name, or is dropped when the name is unknown. */
+    private fun scrubAliases(text: String, names: Map<String, String>): String {
+        if (!ALIAS_TOKEN.containsMatchIn(text)) return text
+        log.warn("suggest item alias in user-facing text; scrubbed")
+        return text.replace(ALIAS_IN_PARENS, "")
+            .replace(ALIAS_TOKEN) { names[it.value] ?: "" }
+            .replace(Regex(" {2,}"), " ").replace(Regex(" ([,.;:!?])"), "$1").trim()
     }
 
     /** Old oneShotCall: up to 4 tries with backoff (0.5 s, 1 s, 2 s) on a blank reply or a non-timeout failure. */
@@ -297,8 +313,11 @@ class SuggestionService(
         }
         @Suppress("UNCHECKED_CAST")
         val outfit = map["outfit"] as? Map<String, Any?> ?: throw ApiException.upstreamFailed("Gemini", "no outfit in reply")
-        val bySlot = outfit.filterKeys { it != "review" }.mapNotNull { (k, v) ->
-            (v as? String)?.trim()?.ifBlank { null }?.let { k.lowercase() to (aliasToId[it] ?: it) }
+        // A slot holds one id, or a list when the look layers two pieces (two outerwear, two accessories).
+        val bySlot = outfit.filterKeys { it != "review" }.flatMap { (k, v) ->
+            (if (v is List<*>) v else listOf(v)).mapNotNull { id ->
+                (id as? String)?.trim()?.ifBlank { null }?.let { k.lowercase() to (aliasToId[it] ?: it) }
+            }
         }
         val ordered = bySlot.sortedBy { (k, _) -> SLOT_ORDER.indexOf(k).let { if (it < 0) SLOT_ORDER.size else it } }
         val review = when (val r = outfit["review"]) {
@@ -391,10 +410,20 @@ class SuggestionService(
     private fun aliases(sortedIds: List<String>): Map<String, String> =
         sortedIds.withIndex().associateTo(LinkedHashMap()) { (i, id) -> id to "I${i + 1}" }
 
-    private fun sessionAliases(session: AiSession): Pair<Map<String, String>, Set<String>> {
-        val ids = session.wardrobeSnapshot.orEmpty().mapNotNull { it["id"] as? String }
-        return aliases(ids) to ids.toSet()
+    private fun sessionAliases(session: AiSession): Triple<Map<String, String>, Set<String>, Map<String, String>> {
+        val snapshot = session.wardrobeSnapshot.orEmpty()
+        val ids = snapshot.mapNotNull { it["id"] as? String }
+        val aliasById = aliases(ids)
+        @Suppress("UNCHECKED_CAST")
+        val attributesById = snapshot.mapNotNull { e -> (e["id"] as? String)?.let { it to e["attributes"] as? Map<String, Any?> } }.toMap()
+        return Triple(aliasById, ids.toSet(), nameByAlias(aliasById, attributesById))
     }
+
+    /** alias → the item's name, lower-cased for use mid-sentence ("the navy blazer"), for items that have one. */
+    private fun nameByAlias(aliasById: Map<String, String>, attributesById: Map<String, Map<String, Any?>?>): Map<String, String> =
+        aliasById.mapNotNull { (id, alias) ->
+            (attributesById[id]?.get("name") as? String)?.trim()?.ifBlank { null }?.let { alias to it.lowercase() }
+        }.toMap()
 
     @Suppress("UNCHECKED_CAST")
     private fun storedHistory(session: AiSession): List<ChatMessage> =
@@ -428,6 +457,8 @@ class SuggestionService(
         val CONTEXTS = listOf("DAILY", "PLANNER", "WARDROBE")
         val CATEGORIES = listOf("tops", "bottoms", "outerwear", "shoes", "accessories")
         val REJECTIONS = listOf("NOT_MY_STYLE", "WRONG_VIBE", "TOO_FORMAL", "TOO_CASUAL", "JUST_BROWSING")
+        val ALIAS_TOKEN = Regex("""\bI\d+\b""")
+        val ALIAS_IN_PARENS = Regex("""\s*\(\s*I\d+(\s*,\s*I\d+)*\s*\)""")
         val SLOT_ORDER = listOf("top", "tops", "dress", "bottom", "bottoms", "outerwear", "shoe", "shoes", "accessory", "accessories")
         val ONE_PIECE = listOf("dress", "gown", "jumpsuit", "playsuit", "romper", "boilersuit", "overalls")
         val CATEGORY_WORDS = listOf(

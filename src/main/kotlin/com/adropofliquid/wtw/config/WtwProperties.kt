@@ -32,7 +32,7 @@ data class WtwProperties(
 
     data class Ai(
         val vertexProjectId: String = "",
-        val vertexLocation: String = "us-central1",
+        val vertexLocation: String = "global",
         val modelSuggest: String = "gemini-2.5-flash",
         val modelAttributes: String = "gemini-2.5-flash-lite",
         val modelImage: String = "gemini-3.1-flash-lite-image", // 2.5-flash-image was shut down 2026-10-02
@@ -46,7 +46,17 @@ data class WtwProperties(
     )
 
     /** mode: http (real rembg service) or stub (no network). */
-    data class Rembg(val mode: String = "http", val url: String = "http://localhost:8000/rembg", val timeoutMs: Long = 60_000)
+    /**
+     * `concurrency`: calls in flight to rembg at once (it works through one photo at a time). Further calls wait
+     * in line up to `queueWaitMs`, then get 504. `timeoutMs` covers one call, not the wait.
+     */
+    data class Rembg(
+        val mode: String = "http",
+        val url: String = "http://localhost:8000/rembg",
+        val timeoutMs: Long = 60_000,
+        val concurrency: Int = 1,
+        val queueWaitMs: Long = 180_000,
+    )
 
     /** mode: s3 (S3 / R2 / MinIO) or local (filesystem, dev). */
     data class Storage(

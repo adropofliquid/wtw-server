@@ -4,7 +4,7 @@ This file is for the people and agents who build the app's HTTP clients (KMP app
 It is written from the code on `main`, not from the brief. Every shape below was checked against a running
 dev server with curl (2026-10-11), unless a line says "from code".
 
-Route numbers (1–29) are the same as in `WTW_SERVER_BRIEF.md` section 4, so both files can be read side by side.
+Route numbers (1–29) are the same as in `WTW_SERVER_BRIEF.md` section 4, so both files can be read side by side. Route 30 (feedback) was added later.
 Where the code and the brief differ, this file follows the code. The list is at the end:
 [Differences from the brief](#differences-from-the-brief).
 
@@ -162,9 +162,9 @@ All seven routes return the same `ProfileResponse`:
 {
   "id": "api-doc-test",
   "displayName": "Doc",
-  "vibes": ["calm"],
-  "event": ["work"],
-  "style": "Minimal",
+  "vibes": ["Classic", "Minimal"],
+  "event": ["Work", "Going out"],
+  "style": "masculine",
   "timezone": "Europe/London"
 }
 ```
@@ -181,11 +181,26 @@ All seven routes return the same `ProfileResponse`:
 Request bodies use `ProfileRequest`. All fields are optional:
 
 ```json
-{"displayName": "Doc", "vibes": ["calm"], "event": ["work"], "style": "Minimal", "timezone": "Europe/London"}
+{"displayName": "Doc", "vibes": ["Classic", "Minimal"], "event": ["Work", "Going out"], "style": "masculine", "timezone": "Europe/London"}
 ```
 
 Any `id` in the body is ignored. The uid always comes from the token.
-In `vibes` and `event`, each string is trimmed and blank strings are dropped.
+In `vibes` and `event`, each string is trimmed, blank strings are dropped, and duplicates are removed.
+
+**Style words (since 2026-10-18).** The server stores and returns these exact strings:
+
+| Field | Values |
+|---|---|
+| `vibes` | `Classic`, `Minimal`, `Smart casual`, `Streetwear`, `Sporty`, `Colourful` |
+| `event` | `Work`, `Casual`, `Going out`, `Date night`, `Active`, `Travel` |
+
+- Any case is accepted and stored in the case above (`"smart casual"` → `"Smart casual"`).
+- Old words from earlier app builds are still accepted and mapped: vibes `clean cut` → `Classic`, `sporty` → `Sporty`,
+  `chill mode` → `Minimal`, `fresh fit` → `Smart casual`, `glow up` → `Colourful`; events `Social` → `Going out`,
+  `Date Night` → `Date night`.
+- Saved profiles were rewritten to the new words (migration V4). GET also maps on the way out, so it never returns
+  an old word.
+- An unknown word is kept as sent. It matches nothing in the Library.
 
 The timezone matters: the ledger week and the daily suggestion cap both use it (UTC if unset).
 
@@ -211,13 +226,13 @@ Upsert. Only the fields you send change. Fields you leave out (or send as null) 
 
 ### 4. PUT `/user/profile/vibes`
 
-- Request: `{"vibes": ["bold"]}`
+- Request: `{"vibes": ["Streetwear", "Colourful"]}`
 - Replaces the whole list.
 - Errors: 400 `VALIDATION` (`"vibes is required"`) if `vibes` is missing or null.
 
 ### 5. PUT `/user/profile/event`
 
-- Request: `{"event": ["date"]}`
+- Request: `{"event": ["Date night"]}`
 - Replaces the whole list.
 - Errors: 400 `VALIDATION` (`"event is required"`) if `event` is missing or null.
 
@@ -673,7 +688,7 @@ Response 200 — an array (real output; one starter, one generated):
     "name": "Athletic tshirt",
     "category": "tops",
     "description": "A moisture-wicking athletic T-shirt in charcoal grey. ...",
-    "vibes": ["sporty"],
+    "vibes": ["Sporty"],
     "styles": ["masculine", "feminine", "androgynous"],
     "brand": null,
     "keywords": [],
@@ -686,7 +701,7 @@ Response 200 — an array (real output; one starter, one generated):
     "name": "Adidas Adilette, black",
     "category": "shoes",
     "description": "Adidas Adilette slide sandals in black.",
-    "vibes": [],
+    "vibes": ["Streetwear"],
     "styles": [],
     "brand": "Adidas",
     "keywords": ["slide sandals", "black", "adidas", "adilette", "..."],
@@ -707,10 +722,18 @@ Response 200 — an array (real output; one starter, one generated):
 | `source` | `"starter"` \| `"generated"` |
 | `name`, `description` | string |
 | `category` | one of the five categories |
-| `vibes`, `styles`, `keywords` | string[] |
+| `vibes` | string[], at least one of the six vibe words (see Profile). Every item has at least one |
+| `styles`, `keywords` | string[] |
 | `brand` | string or null |
 | `imageUrl` | string. Presigned URL of the WebP image, valid for `STORAGE_PRESIGN_TTL` (7 days). Do not store it; refetch `/library` for fresh URLs. |
 | `attributes` | superset attributes object, or null (null for starters) |
+
+Vibe tags come from the seed (`VibeTagger`), from each item's garment type, colours, brand, formality and polish.
+Coverage today: Minimal 337, Streetwear 146, Smart casual 142, Classic 140, Sporty 82, Colourful 44 (an item can
+have several). The catalog is mostly neutral basics, so Colourful is small.
+
+**App filter rule:** the server sends the whole Library; the app filters it. When the user's vibes match no item
+(in the category shown), show all items rather than an empty list. The server's own filter (route 12) does the same.
 
 App note: this is the KMP `CatalogItem` plus `source`, `brand`, `keywords` and `imageUrl`. Decode with
 `ignoreUnknownKeys`. The list is cached on the server for 10 minutes.
@@ -720,13 +743,14 @@ App note: this is the KMP `CatalogItem` plus `source`, `brand`, `keywords` and `
 **Compat** route, used by the existing `HttpCatalog`. Starters only, filtered by the caller's profile:
 
 - If the profile has a `style`, only starters whose `styles` contain it.
-- If the profile has `vibes`, only starters that share at least one vibe.
+- If the profile has `vibes`, only starters that share at least one vibe (old vibe words are mapped first).
 - No style and no vibes → all starters (42 today).
+- Never empty: if the vibes match no starter, the vibe filter is dropped; if the style matches none either, all starters.
 
 Response 200 — an array (shape from code; count checked by curl):
 
 ```json
-[{"id": "<library id>", "name": "<old file name>.png", "description": "...", "type": "tops", "vibe": ["sporty"], "style": ["masculine", "feminine", "androgynous"]}]
+[{"id": "<library id>", "name": "<old file name>.png", "description": "...", "type": "tops", "vibe": ["Sporty"], "style": ["masculine", "feminine", "androgynous"]}]
 ```
 
 `name` is the old PNG file name. `type` is the category. `vibe` and `style` are singular names here, on purpose
@@ -924,8 +948,8 @@ One outfit at a time. The app starts a session, asks for the next one or a refin
 | `suggestion` | object when `SUCCESS`, else null |
 | `suggestion.id` | string (UUID). Use it in accept. |
 | `suggestion.name` | string (first part of `occasion`, or `"Outfit"`) |
-| `suggestion.itemIds` | string[], at least one id, ordered top → bottom → outerwear → shoes → accessories |
-| `suggestion.reasoning` | string (may be `""`) |
+| `suggestion.itemIds` | string[], at least one id, ordered top → bottom → outerwear → shoes → accessories. May hold two outerwear pieces (e.g. blazer under overcoat) or several accessories; no fixed length |
+| `suggestion.reasoning` | string (may be `""`). Names pieces by name, never by id; the server removes any `I9`-style id the model writes |
 | `suggestion.occasion` | string or null |
 | `failure` | object when not `SUCCESS`, else null |
 | `failure.reason` | string or null |
@@ -954,7 +978,7 @@ Request:
 {
   "context": "DAILY",
   "dayType": "Work",
-  "comfort": "Comfortable",
+  "comfort": "Relaxed",
   "date": "2026-10-12",
   "weather": {"date": "2026-10-12", "code": 3, "maxC": 16.1, "minC": 9.4, "precipChance": 10},
   "wardrobe": [
@@ -971,7 +995,8 @@ Request:
 | Field | Type | Rule |
 |---|---|---|
 | `context` | `"DAILY"` \| `"PLANNER"` \| `"WARDROBE"` | required (any case) |
-| `dayType`, `comfort` | string or null | free text, trimmed |
+| `dayType` | string or null | `Work`, `Casual`, `Going out`, `Date night`, `Active`, `Travel`, `Not sure`. Old `Social` → `Going out`; any case accepted. Other text is passed to the model as sent |
+| `comfort` | string or null | How the user wants to feel: `Cosy`, `Relaxed`, `Smart`, `Bold` (Bold = stand out). Old `Cozy` → `Cosy`, `Comfortable` and `Effortless` → `Relaxed`, `Sharp` → `Smart`. Null → `Relaxed` |
 | `date` | `yyyy-MM-dd` or null | DAILY and PLANNER default to today (profile timezone) |
 | `weather` | `DayWeather` or null | `{date: string, code: int (WMO), maxC: number, minC: number, precipChance: int}`, all nullable |
 | `wardrobe` | `WardrobeEntry[]` | required (may be empty), at most 2000 entries; duplicate ids are merged |
@@ -1093,6 +1118,13 @@ Both fields required.
   No credits header.
 - Errors: photo errors, 429, 502 `UPSTREAM_FAILED`, 504 `UPSTREAM_TIMEOUT`.
 - Stores nothing. To keep the cut-out, upload it with route 10 (`kind=cutout`).
+- **One photo at a time.** rembg works through photos one by one (about 9 s each on the dev Mac, longer when
+  memory is low). The server sends it one call at a time and makes the rest wait in line, in arrival order, for up to
+  3 minutes (`REMBG_QUEUE_WAIT_MS`); past that, 504 `UPSTREAM_TIMEOUT`. One call itself times out after 60 s.
+  - So the app should send a bulk import **one photo after another**, not all at once, and show progress.
+    Sending them all at once only makes them wait in line on the server instead.
+  - Client timeout for this route: at least **4 minutes** (3 min in line + 60 s call).
+  - On 504, retry that photo later, after the rest of the batch. Do not retry at once.
 
 ---
 
@@ -1272,13 +1304,39 @@ Errors: 400 `VALIDATION` (`"latitude and longitude are required"`, `"latitude mu
 
 ---
 
+## Feedback
+
+### 30. POST `/feedback`
+
+**App client needed** (already built: Settings → Feedback). Full contract from the app side:
+`whattowear/db/IN_APP_FEEDBACK.md`. Not metered: no credits, no caps.
+
+- Header `Idempotency-Key: <id>` is sent by the app. The server ignores it and de-duplicates on the body's `id`.
+- Request:
+  ```json
+  {"id": "6f1c2e0a-8b7d-4a51-9c2e-3d4b5a6c7d8e", "message": "The planner should remember my last week.",
+   "category": "idea", "canReply": true, "email": "someone@example.com", "uid": "firebase-uid",
+   "appVersion": "1.4.0", "platform": "ios", "osVersion": "26.4", "createdAt": 1792270000000}
+  ```
+- Response: **204**, no body. Same answer for a resend of a stored `id`; nothing new is stored.
+- 400 `VALIDATION` only when `id` is not a UUID or `message` is empty or over 4000 characters after trimming.
+  Every other field is tidied, never refused: an unknown `category` is stored as `other`, missing
+  `appVersion` / `platform` / `osVersion` as `unknown`, a missing `createdAt` as the time received.
+  `email` is kept only when `canReply` is true. Unknown fields are ignored.
+- The row is filed under the uid from the token. The body's `uid` is kept as `body_uid`; a mismatch is logged, not rejected.
+- Stored in the `feedback` table (migration V3), append-only. `status` (`new` by default) is for your own triage.
+  Read it in SQL, e.g. `SELECT * FROM feedback ORDER BY received_at DESC`.
+- `DELETE /account` deletes the caller's feedback rows.
+
+---
+
 ## Account deletion
 
 ### 28. DELETE `/account`
 
 **App client needed.** Deletes everything the server holds for the caller:
 all stored images under `users/{uid}/`, every mirror row, AI sessions and suggestions, ledger rows,
-push tokens, the profile row, and RevenueCat event rows for this uid.
+push tokens, feedback, the profile row, and RevenueCat event rows for this uid.
 
 - Request: no body.
 - Response: **204**, no body. Idempotent: 204 even if there was nothing to delete.

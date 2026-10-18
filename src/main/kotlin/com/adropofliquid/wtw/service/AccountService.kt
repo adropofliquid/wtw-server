@@ -33,6 +33,7 @@ class AccountService(
     private val suggestions: AiSuggestionRepository,
     private val ledger: LedgerEntryRepository,
     private val tokens: PushTokenRepository,
+    private val feedback: FeedbackRepository,
     private val profiles: UserProfileRepository,
     private val rcEvents: RevenueCatEventRepository,
     private val profileService: UserProfileService,
@@ -57,6 +58,7 @@ class AccountService(
                 "suggestions" to suggestions.deleteByUserId(uid),
                 "ledger" to ledger.deleteByUserId(uid),
                 "pushTokens" to tokens.deleteByUserId(uid),
+                "feedback" to feedback.deleteByUserId(uid),
             )
             c["profile"] = if (profiles.existsById(uid)) { profiles.deleteById(uid); 1L } else 0L
             c

@@ -43,7 +43,7 @@ wtw:
     dev-uid: ${AUTH_DEV_UID:dev-user}
   ai:
     vertex-project-id: ${VERTEX_PROJECT_ID:}
-    vertex-location: ${VERTEX_LOCATION:us-central1}
+    vertex-location: ${VERTEX_LOCATION:global}  # 3.x image models are only on global; text works there too
     model-suggest: ${GEMINI_MODEL_SUGGEST:gemini-2.5-flash}
     model-attributes: ${GEMINI_MODEL_ATTRIBUTES:gemini-2.5-flash-lite}
     model-image: ${GEMINI_MODEL_IMAGE:gemini-3.1-flash-lite-image}
@@ -56,6 +56,8 @@ wtw:
     mode: ${REMBG_MODE:http}
     url: ${REMBG_URL:http://localhost:8000/rembg}
     timeout-ms: ${REMBG_TIMEOUT_MS:60000}
+    concurrency: ${REMBG_CONCURRENCY:1}
+    queue-wait-ms: ${REMBG_QUEUE_WAIT_MS:180000}
   storage:
     mode: ${STORAGE_MODE:s3}
     endpoint: ${STORAGE_ENDPOINT:}

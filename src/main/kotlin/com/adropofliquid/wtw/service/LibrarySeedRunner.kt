@@ -80,8 +80,13 @@ class LibrarySeedRunner(
             val row = LibraryItem(
                 id = id, source = LibraryService.STARTER, name = labelFromFileName(fileName), fileName = fileName,
                 category = s["type"].str(), description = s["description"].str(), attributes = null,
-                vibes = s["vibe"].strList(), styles = s["style"].strList(), imageKey = Keys.library(id),
+                vibes = emptyList(), styles = s["style"].strList(), imageKey = Keys.library(id),
             )
+            // The file's old vibe words, mapped, plus the tagger's. "glow up" → Colourful only when the tagger agrees:
+            // most of those starters are black evening pieces.
+            val tagged = VibeTagger.tag(row)
+            val mapped = Vocab.vibes(s["vibe"].strList()).filter { it != "Colourful" || it in tagged }
+            row.vibes = Vocab.VIBES.filter { it in mapped || it in tagged }
             upsert(row, t)
             val local = listOf(dir.resolve(fileName), dir.resolve("onboarding-clothing-items").resolve(fileName)).firstOrNull { Files.isRegularFile(it) }
             val ok = uploadImage(row.imageKey, t) {
@@ -106,6 +111,7 @@ class LibrarySeedRunner(
                 styles = when (gender) { "men" -> listOf("masculine"); "women" -> listOf("feminine"); else -> emptyList() },
                 imageKey = Keys.library(id),
             )
+            row.vibes = VibeTagger.tag(row)
             upsert(row, t)
             val file = dir.resolve(c["image"]?.toString()?.ifBlank { null } ?: "cutout/$id.png").normalize()
             val ok = uploadImage(row.imageKey, t) { if (file.startsWith(dir) && Files.isRegularFile(file)) Files.readAllBytes(file) else null }

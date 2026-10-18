@@ -4,6 +4,7 @@ import com.adropofliquid.wtw.dto.ProfileRequest
 import com.adropofliquid.wtw.dto.ProfileResponse
 import com.adropofliquid.wtw.service.ApiException
 import com.adropofliquid.wtw.service.UserProfileService
+import com.adropofliquid.wtw.service.Vocab
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 
@@ -24,11 +25,11 @@ class ProfileController(private val profiles: UserProfileService) {
 
     @PutMapping("/vibes")
     fun vibes(@AuthenticationPrincipal uid: String, @RequestBody req: ProfileRequest): ProfileResponse =
-        profiles.update(uid) { it.vibes = profiles.clean(req.vibes ?: throw ApiException.validation("vibes is required")) }
+        profiles.update(uid) { it.vibes = Vocab.vibes(req.vibes ?: throw ApiException.validation("vibes is required")) }
 
     @PutMapping("/event")
     fun event(@AuthenticationPrincipal uid: String, @RequestBody req: ProfileRequest): ProfileResponse =
-        profiles.update(uid) { it.events = profiles.clean(req.event ?: throw ApiException.validation("event is required")) }
+        profiles.update(uid) { it.events = Vocab.occasions(req.event ?: throw ApiException.validation("event is required")) }
 
     @PatchMapping("/style")
     fun style(@AuthenticationPrincipal uid: String, @RequestBody req: ProfileRequest): ProfileResponse =

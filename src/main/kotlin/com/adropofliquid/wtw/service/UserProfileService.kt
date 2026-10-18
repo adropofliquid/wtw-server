@@ -44,8 +44,8 @@ class UserProfileService(private val repo: UserProfileRepository) {
     @Transactional
     fun upsert(uid: String, req: ProfileRequest): ProfileResponse = update(uid) { p ->
         req.displayName?.let { p.displayName = it }
-        req.vibes?.let { p.vibes = clean(it) }
-        req.event?.let { p.events = clean(it) }
+        req.vibes?.let { p.vibes = Vocab.vibes(it) }
+        req.event?.let { p.events = Vocab.occasions(it) }
         req.style?.let { p.style = it }
         req.timezone?.let { p.timezone = validZone(it) }
     }
@@ -69,5 +69,6 @@ class UserProfileService(private val repo: UserProfileRepository) {
     fun zoneOf(uid: String): ZoneId = repo.findById(uid).orElse(null)?.timezone
         ?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: ZoneId.of("UTC")
 
-    private fun UserProfile.toResponse() = ProfileResponse(id, displayName, vibes, events, style, timezone)
+    /** Old words are mapped on read too (rows written before the change, e.g. by the data copy). */
+    private fun UserProfile.toResponse() = ProfileResponse(id, displayName, Vocab.vibes(vibes), Vocab.occasions(events), style, timezone)
 }

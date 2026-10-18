@@ -16,8 +16,15 @@ import java.io.InterruptedIOException
 import java.net.http.HttpClient
 import java.net.http.HttpTimeoutException
 import java.time.Duration
+import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
 
-/** REMBG_MODE=http (prod default): multipart POST (field `file`) to REMBG_URL, the Python rembg service. Timeout REMBG_TIMEOUT_MS → 504. */
+/**
+ * REMBG_MODE=http (prod default): multipart POST (field `file`) to REMBG_URL, the Python rembg service. Timeout REMBG_TIMEOUT_MS → 504.
+ * At most REMBG_CONCURRENCY calls go to rembg at once; the rest wait in line here (fair order) up to REMBG_QUEUE_WAIT_MS,
+ * then 504. Without the line, a burst lands on rembg all at once, every call times out, and rembg keeps working on
+ * photos nobody is waiting for any more.
+ */
 @Component
 @ConditionalOnProperty(name = ["wtw.rembg.mode"], havingValue = "http")
 class RembgClient(private val props: WtwProperties) : BackgroundRemovalClient {
@@ -26,8 +33,22 @@ class RembgClient(private val props: WtwProperties) : BackgroundRemovalClient {
         .requestFactory(JdkClientHttpRequestFactory(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build())
             .apply { setReadTimeout(Duration.ofMillis(props.rembg.timeoutMs)) })
         .build()
+    private val line = Semaphore(props.rembg.concurrency.coerceAtLeast(1), true)
 
     override fun remove(photo: ByteArray): ByteArray {
+        val queued = System.nanoTime()
+        if (!line.tryAcquire(props.rembg.queueWaitMs, TimeUnit.MILLISECONDS)) {
+            log.warn("upstream=rembg busy waitedMs={}", (System.nanoTime() - queued) / 1_000_000)
+            throw ApiException.upstreamTimeout("Background removal")
+        }
+        try {
+            return call(photo)
+        } finally {
+            line.release()
+        }
+    }
+
+    private fun call(photo: ByteArray): ByteArray {
         val start = System.nanoTime()
         val body = LinkedMultiValueMap<String, Any>().apply {
             add("file", object : ByteArrayResource(photo) { override fun getFilename() = "photo" })
@@ -43,7 +64,9 @@ class RembgClient(private val props: WtwProperties) : BackgroundRemovalClient {
             warn(e.statusCode.value(), start)
             throw ApiException.upstreamFailed("Background removal", e)
         } catch (e: Exception) {
-            val timeout = generateSequence<Throwable>(e) { it.cause }.take(10).any { it is HttpTimeoutException || it is InterruptedIOException }
+            // A read timeout mid-body surfaces as "closed", not HttpTimeoutException: the elapsed time tells.
+            val timeout = generateSequence<Throwable>(e) { it.cause }.take(10).any { it is HttpTimeoutException || it is InterruptedIOException } ||
+                (System.nanoTime() - start) / 1_000_000 >= props.rembg.timeoutMs
             warn(null, start)
             throw if (timeout) ApiException.upstreamTimeout("Background removal", e) else ApiException.upstreamFailed("Background removal", e)
         }

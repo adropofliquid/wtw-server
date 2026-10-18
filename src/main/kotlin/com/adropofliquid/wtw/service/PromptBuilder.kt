@@ -60,7 +60,8 @@ class PromptBuilder(private val json: JsonMapper) {
         appendLine()
         appendLine("Context:")
         appendLine("- Day type: ${dayType?.ifBlank { null } ?: "Not sure"}")
-        appendLine("- Comfort: ${comfort?.ifBlank { null } ?: "Comfortable"}")
+        val feel = comfort?.ifBlank { null } ?: "Relaxed"
+        appendLine("- How they want to feel: $feel${FEEL_MEANING[feel]?.let { " ($it)" } ?: ""}")
         style?.ifBlank { null }?.let { appendLine("- Style: $it") }
         appendLine("- Additional Info: ${note?.trim()?.ifBlank { null } ?: "None"}")
         val worn = recentlyWorn.entries.mapNotNull { (id, date) -> aliasById[id]?.let { it to date } }.sortedBy { it.first }
@@ -149,6 +150,14 @@ class PromptBuilder(private val json: JsonMapper) {
 
     companion object {
         private val DATE_FORMAT = DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", Locale.ENGLISH)
+
+        /** What each "how you want to feel" choice means, so the model reads the app's short words the same way. */
+        private val FEEL_MEANING = mapOf(
+            "Cosy" to "warm, soft, snug layers",
+            "Relaxed" to "easy and comfortable, nothing fussy",
+            "Smart" to "polished and put-together",
+            "Bold" to "stand out: a statement piece, colour or contrast",
+        )
 
         /** Superset vocabulary (ruling 9.2), in the order the model reads it. */
         val PROMPT_KEYS = listOf(

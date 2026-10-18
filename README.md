@@ -34,10 +34,9 @@ curl -H 'Authorization: Bearer dev-token' -F photo=@shirt.jpg localhost:8080/ima
 ```
 No Docker and no Python? Keep `REMBG_MODE=stub` (the default).
 
-Cut-outs come back at **300 px** until the remover reads `MAX_SIDE` (the brief wants 600 px). The server does not
-change files in `imgbg-remover/`. Developer step, once, in that repo: in `main.py`, make `resize_image` use
-`max_size = int(os.getenv("MAX_SIDE", "300"))` (add `import os`), then run it with `MAX_SIDE=600`
-(`docker-compose.yml` already sets it).
+Cut-outs come back with the longest side at **600 px**: the remover reads `MAX_SIDE` from the env and defaults to
+600 (patched in `imgbg-remover/main.py`, 2026-10-17). Leave `MAX_SIDE` unset, or set it to 600. The server stores
+images at `IMAGE_MAX_SIDE` (600) and never upscales, so a larger `MAX_SIDE` only costs bandwidth.
 
 ### Local development: a local model instead of the Gemini stub
 The dev default `GEMINI_MODE=stub` gives canned replies. For a cheap "real feel", run a small vision model on
@@ -85,15 +84,16 @@ Live numbers (credits, costs, caps, pack sizes, notification copy) are **not** e
 | `DB_POOL_SIZE` | 10 | Hikari pool |
 | `FIREBASE_CREDENTIALS_PATH` | — (required in prod) | Service-account JSON: token check + FCM |
 | `GOOGLE_APPLICATION_CREDENTIALS` | — | Vertex AI credentials file (Google ADC) |
-| `VERTEX_PROJECT_ID`, `VERTEX_LOCATION` | —, `us-central1` | Vertex project and region |
+| `VERTEX_PROJECT_ID`, `VERTEX_LOCATION` | —, `global` | Vertex project and location. Keep `global`: the 3.x image models are not served from `us-central1` (404) |
 | `GEMINI_MODEL_SUGGEST` | `gemini-2.5-flash` | Suggestions, outfit description |
 | `GEMINI_MODEL_ATTRIBUTES` | `gemini-2.5-flash-lite` | Reading a photo |
 | `GEMINI_MODEL_IMAGE` | `gemini-3.1-flash-lite-image` | AI item image |
-| `AI_TIMEOUT_MS` | 60000 | Every Gemini call (except the image call) |
-| `AI_IMAGE_TIMEOUT_MS` | 60000 | The Gemini image call (`/ai/generate-image`). The app should wait 90 s on routes 15 and 16 (API.md). |
+| `AI_TIMEOUT_MS` | 600000 | Every Gemini call (except the image call) |
+| `AI_IMAGE_TIMEOUT_MS` | 600000 | The Gemini image call (`/ai/generate-image`). The app should wait 11 min on routes 15 and 16 (API.md). |
 | `GEMINI_MODE` | `stub` | Not prod only: `stub` or `local` (see "Local development: a local model"). Prod always uses Vertex. |
 | `LOCAL_MODEL_URL`, `LOCAL_MODEL_NAME` | `http://localhost:11434`, `qwen2.5vl:3b` | `GEMINI_MODE=local` only: OpenAI-compatible server and model |
-| `REMBG_MODE`, `REMBG_URL`, `REMBG_TIMEOUT_MS` | `http`, `http://localhost:8000/rembg`, 60000 | Background removal service |
+| `REMBG_MODE`, `REMBG_URL`, `REMBG_TIMEOUT_MS` | `http`, `http://localhost:8000/rembg`, 60000 | Background removal service. The timeout covers one call |
+| `REMBG_CONCURRENCY`, `REMBG_QUEUE_WAIT_MS` | 1, 180000 | Calls sent to rembg at once; the rest wait in line this long, then 504 |
 | `STORAGE_MODE` | `s3` | `s3` or `local` |
 | `STORAGE_ENDPOINT`, `STORAGE_REGION` | empty (= AWS), `auto` | S3-compatible endpoint (R2: `https://<account>.r2.cloudflarestorage.com`) |
 | `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` | — | Storage credentials |
@@ -121,7 +121,7 @@ Live numbers (credits, costs, caps, pack sizes, notification copy) are **not** e
 
 ## Commands (same jar, no web server, exit when done)
 ```sh
-java -jar app.jar --seed-library                 # Library seed (brief 5.4). Idempotent.
+java -jar app.jar --seed-library                 # Library seed (brief 5.4). Idempotent. Also sets Library vibe tags (VibeTagger); re-run after changing the tagger.
 java -jar app.jar --data-copy=dry-run|apply ...  # Old → new data copy (brief 7). See "Data copy".
 # locally: ./gradlew bootRun -Pargs="--seed-library"
 ```
@@ -158,10 +158,14 @@ dokku postgres:create wtw-db
 dokku postgres:link wtw-db wtw-server                 # sets DATABASE_URL
 dokku ports:set wtw-server http:80:8080 https:443:8080
 dokku domains:set wtw-server api.whatshouldiwear.app
+# nginx gives up after 60 s by default. Gemini calls may take up to 10 min and route 21 may wait in line 4 min.
+dokku nginx:set wtw-server proxy-read-timeout 660s
+dokku nginx:set wtw-server client-max-body-size 20m
+dokku proxy:build-config wtw-server
 dokku storage:ensure-directory wtw
 dokku storage:mount wtw-server /var/lib/dokku/data/storage/wtw:/app/credentials   # firebase.json, vertex.json
 dokku config:set wtw-server FIREBASE_CREDENTIALS_PATH=/app/credentials/firebase.json \
-  GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/vertex.json VERTEX_PROJECT_ID=… VERTEX_LOCATION=us-central1 \
+  GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/vertex.json VERTEX_PROJECT_ID=… VERTEX_LOCATION=global \
   STORAGE_ENDPOINT=… STORAGE_ACCESS_KEY=… STORAGE_SECRET_KEY=… STORAGE_BUCKET_USER=… STORAGE_BUCKET_LIBRARY=… \
   RC_API_KEY=… RC_PROJECT_ID=… RC_ENTITLEMENT_ID=… RC_WEBHOOK_AUTH=… \
   WEATHER_API_KEY=… WEATHER_MAX_DAYS=… REMBG_URL=http://wtw-rembg.web:8000/rembg
@@ -169,7 +173,7 @@ dokku config:set wtw-server FIREBASE_CREDENTIALS_PATH=/app/credentials/firebase.
 # Remover (its own repo: whattowear/imgbg-remover)
 dokku apps:create wtw-rembg
 dokku domains:disable wtw-rembg
-dokku config:set wtw-rembg MAX_SIDE=600            # needs the small rembg change below
+dokku config:set wtw-rembg MAX_SIDE=600            # optional: 600 is already the default in main.py
 
 # Private network between the two
 dokku network:create wtw-net
@@ -183,9 +187,10 @@ git remote add dokku dokku@<host>:wtw-server && git push dokku main
 ```
 The old app `wtw` and its database stay up, untouched, until the copy is verified.
 
-**rembg change (not made here; it is another repo):** `imgbg-remover/main.py` resizes to a fixed 300px. Make it read
-`MAX_SIDE` from the env (`max_size = int(os.getenv("MAX_SIDE", "300"))`) so cut-outs come back at 600px. Until then the
-server works, with 300px cut-outs (it never upscales).
+**rembg output size:** `imgbg-remover/main.py` reads `MAX_SIDE` (default **600**), the longest side of the returned
+cut-out in px. 600 matches the server's `IMAGE_MAX_SIDE`. Deploy the remover from its own repo
+(`git@github.com:adropofliquid/imgbg-remover.git`, commit with the `MAX_SIDE` change or later). It needs about 2.5 GB
+of RAM while it works (BiRefNet-lite) and handles one photo at a time (~9 s on an M-series Mac).
 
 ## Health
 `GET /health` → `{"status":"UP"}` after a DB ping; 503 `{"status":"DOWN"}` otherwise. Public. The Docker image has a `HEALTHCHECK` too.

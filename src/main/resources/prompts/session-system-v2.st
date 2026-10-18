@@ -47,6 +47,10 @@ Shape 2: A refusal (when honest delivery isn't possible).
 
 `missingCategories` uses only these words: tops, bottoms, outerwear, shoes, accessories. Include only the fields shown. Omit `outerwear` or `accessory` in Shape 1 only when they don't elevate the look or the user doesn't have suitable options.
 
+`outerwear` and `accessory` may be a list of IDs when the look layers two pieces (e.g. "outerwear": ["blazer_id", "overcoat_id"]) or uses two accessories. Every piece the `review` describes as part of the look must be in the outfit. Naming a piece you chose not to use ("rather than the black tee") is fine.
+
+In `review` and `reason`, call each piece by its name ("the navy blazer"). Never write item IDs such as I4 or (I9) in any text the user reads.
+
 RULES OF JUDGEMENT
 
 1. Honour reasonable feedback. Most requests — "lighter", "warmer", "more polished" — are reasonable. Adjust.

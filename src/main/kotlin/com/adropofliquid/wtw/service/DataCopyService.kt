@@ -225,7 +225,7 @@ class DataCopyService(
         val updated = src.updatedAt ?: src.createdAt ?: Instant.EPOCH
         val desired = UserProfile(
             id = uid, displayName = src.displayName, style = src.style,
-            vibes = DataCopyTransforms.splitList(src.vibes), events = DataCopyTransforms.splitList(src.event),
+            vibes = Vocab.vibes(DataCopyTransforms.splitList(src.vibes)), events = Vocab.occasions(DataCopyTransforms.splitList(src.event)),
             timezone = src.timezone, lastNotifiedAt = lastNotified,
             createdAt = src.createdAt ?: updated, updatedAt = updated,
         )
@@ -449,8 +449,8 @@ class DataCopyService(
             val desired = AiSession(
                 id = s.id, userId = uid,
                 context = s.context?.uppercase()?.takeIf { it in setOf("DAILY", "PLANNER", "WARDROBE") } ?: "DAILY",
-                targetDate = s.targetDate, dayType = s.originalEvent,
-                vibes = DataCopyTransforms.jsonStringList(s.originalVibes) ?: DataCopyTransforms.splitList(s.originalVibes),
+                targetDate = s.targetDate, dayType = s.originalEvent?.trim()?.ifBlank { null }?.let(Vocab::occasion),
+                vibes = Vocab.vibes(DataCopyTransforms.jsonStringList(s.originalVibes) ?: DataCopyTransforms.splitList(s.originalVibes)),
                 note = s.originalMoreInfo,
                 wardrobeSnapshot = DataCopyTransforms.jsonStringList(s.wardrobeSnapshotIds)?.map { mapOf("id" to it) },
                 status = status, initiator = s.initiator ?: "USER_INITIATED", attemptNumber = s.attemptNumber ?: 0,
@@ -482,7 +482,7 @@ class DataCopyService(
                 id = s.id, userId = uid, sessionId = s.sessionId?.takeIf { it in prep.sessionIds },
                 kind = if (s.sessionId != null) "session" else "legacy_batch", attemptNumber = s.attemptNumber ?: 1,
                 name = s.name, itemIds = prep.suggestionItems[s.id].orEmpty(), reasoning = s.outfitReview,
-                occasion = s.occasion, dayType = s.event, vibes = DataCopyTransforms.splitList(s.vibes), note = s.moreInfo,
+                occasion = s.occasion, dayType = s.event?.trim()?.ifBlank { null }?.let(Vocab::occasion), vibes = Vocab.vibes(DataCopyTransforms.splitList(s.vibes)), note = s.moreInfo,
                 accepted = s.favorited ?: false, acceptedAt = null, rejected = s.wasRejected ?: false,
                 rejectionReason = s.rejectionReason?.trim()?.uppercase()?.ifEmpty { null }, feedbackText = s.feedbackText,
                 createdAt = s.createdAt ?: updated, updatedAt = updated,
