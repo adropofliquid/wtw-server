@@ -104,7 +104,7 @@ Live numbers (credits, costs, caps, pack sizes, notification copy) are **not** e
 | `UPLOAD_MAX_BYTES` | 10485760 | Upload limit (also the multipart limit) |
 | `RC_API_KEY`, `RC_PROJECT_ID` | — | RevenueCat REST v2 |
 | `RC_ENTITLEMENT_ID` | — | Entitlement id for REST v2 (old server: `entlf1fdc6965b`) |
-| `RC_ENTITLEMENT_IDENTIFIER` | `Pro` | Entitlement identifier (app/webhooks) |
+| `RC_ENTITLEMENT_IDENTIFIER` | `Pro` | Entitlement identifier. Not read by the code today: premium is checked by `RC_ENTITLEMENT_ID` |
 | `RC_WEBHOOK_AUTH` | — | Shared secret RevenueCat sends in `Authorization`. Empty = every webhook is refused (401). |
 | `RC_CACHE_TTL` | `15m` | Entitlement cache |
 | `RC_DEV_PREMIUM_UIDS` | — | dev only: uids the stub treats as premium |

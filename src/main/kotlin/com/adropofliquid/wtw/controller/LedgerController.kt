@@ -29,6 +29,8 @@ class LedgerController(private val ledger: LedgerService, private val config: Ap
                 "OUTFIT_DESCRIPTION" to cfg.costOutfitDescription,
             ),
             freeItemLimit = cfg.freeItemLimit,
+            freeWeeklyCredits = cfg.freeWeeklyCredits,
+            premiumWeeklyCredits = cfg.premiumWeeklyCredits,
         )
         return okWithCredits(s.balance, body)
     }

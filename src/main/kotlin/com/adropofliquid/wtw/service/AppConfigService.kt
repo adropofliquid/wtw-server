@@ -20,14 +20,14 @@ class AppConfigService(private val repo: AppConfigRepository) {
     fun ledger(): LedgerSettings = LedgerSettings(get("ledger"))
 }
 
-/** Typed view of the `ledger` config row. Defaults match V2__seed_config.sql. */
+/** Typed view of the `ledger` config row. Defaults match the seeded row (V2, then V6 money model v1). */
 class LedgerSettings(private val m: Map<String, Any?>) {
     private fun int(key: String, default: Int) = (m[key] as? Number)?.toInt() ?: m[key]?.toString()?.toIntOrNull() ?: default
 
-    val freeWeeklyCredits get() = int("free_weekly_credits", 7)
-    val premiumWeeklyCredits get() = int("premium_weekly_credits", 100)
+    val freeWeeklyCredits get() = int("free_weekly_credits", 5)
+    val premiumWeeklyCredits get() = int("premium_weekly_credits", 50)
     val costOutfitSuggestion get() = int("cost_outfit_suggestion", 1)
-    val costAiImage get() = int("cost_ai_image", 2)
+    val costAiImage get() = int("cost_ai_image", 3)
     val costOutfitDescription get() = int("cost_outfit_description", 1)
     val freeDailyGenerations get() = int("free_daily_generations", 20)
     val premiumDailyGenerations get() = int("premium_daily_generations", 200)
