@@ -149,7 +149,7 @@ Rehearsal on Dokku:
 
 ## Deploy (Dokku)
 Three units on one host. Dokku builds from the `Dockerfile` (no Procfile needed; the image `CMD` runs the jar).
-`app.json` holds the `/health` startup check (port 8080).
+`app.json` holds the `/health` startup check (port 8080): up to 24 tries 5 s apart (2 min). Startup takes ~22 s on a 2 vCPU box, so the old 5 tries (25 s) refused the first deploy.
 
 ```sh
 # API

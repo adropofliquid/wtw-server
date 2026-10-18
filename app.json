@@ -7,7 +7,7 @@
         "name": "wtw-server health",
         "path": "/health",
         "port": 8080,
-        "attempts": 5,
+        "attempts": 24,
         "wait": 5,
         "timeout": 5
       }
