@@ -15,3 +15,6 @@ data-copy-*.json
 data-copy-*.csv
 library-seed/
 out/
+
+# Local run logs
+.logs/
