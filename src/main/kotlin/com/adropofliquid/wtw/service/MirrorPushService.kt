@@ -102,12 +102,14 @@ class MirrorPushService(
                 if (cur == null) e.createdAt = ms(row.createdAt ?: updatedAt)
                 if (row.deletedAt != null) {
                     e.deletedAt = ms(row.deletedAt)
-                    listOfNotNull(e.cutoutKey, e.generatedKey, Keys.itemImage(uid, id, CUTOUT), Keys.itemImage(uid, id, GENERATED))
+                    listOfNotNull(e.cutoutKey, e.generatedKey, e.originalKey, Keys.itemImage(uid, id, CUTOUT), Keys.itemImage(uid, id, GENERATED))
                         .forEach { keysToDelete += it }
                     e.cutoutKey = null
                     e.generatedKey = null
                     e.cutoutVersion = null
                     e.generatedVersion = null
+                    e.originalKey = null
+                    e.originalVersion = null
                 } else {
                     e.deletedAt = null
                     row.createdAt?.let { e.createdAt = ms(it) }
@@ -367,6 +369,7 @@ class MirrorPushService(
         const val MISSING_OUTFIT = "MISSING_OUTFIT"
         const val CUTOUT = "cutout"
         const val GENERATED = "generated"
+        const val ORIGINAL = "original"
         val CHOSEN = setOf("ORIGINAL", "CUTOUT", "GENERATED")
         val CATEGORIES = setOf("tops", "bottoms", "outerwear", "shoes", "accessories")
         val WEAR_STATUS = setOf("WORN", "NOT_WORN")

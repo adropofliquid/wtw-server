@@ -101,6 +101,7 @@ Live numbers (credits, costs, caps, pack sizes, notification copy) are **not** e
 | `STORAGE_LOCAL_DIR` | `.local-storage` | `local` mode only |
 | `PUBLIC_BASE_URL` | `http://localhost:$PORT` | The API's public address. Image links are built on it: **set it on every deployed box** (e.g. `https://api-test.whattowearapp.com`) |
 | `IMAGE_MAX_SIDE`, `IMAGE_WEBP_QUALITY` | 600, 80 | Stored images |
+| `IMAGE_ORIGINAL_MAX_SIDE`, `IMAGE_ORIGINAL_WEBP_QUALITY` | 2048, 85 | Backed-up original photos: kept as sent up to this size, else shrunk to WebP |
 | `UPLOAD_MAX_BYTES` | 10485760 | Upload limit (also the multipart limit) |
 | `RC_API_KEY`, `RC_PROJECT_ID` | — | RevenueCat REST v2 |
 | `RC_ENTITLEMENT_ID` | — | Entitlement id for REST v2 (old server: `entlf1fdc6965b`) |

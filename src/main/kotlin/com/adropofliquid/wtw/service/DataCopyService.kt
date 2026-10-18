@@ -263,6 +263,7 @@ class DataCopyService(
                 catalogId = if (i.ownUpload) null else i.imageMetadataId,
                 cutoutKey = ex?.cutoutKey ?: newKey, generatedKey = ex?.generatedKey,
                 cutoutVersion = ex?.cutoutVersion, generatedVersion = ex?.generatedVersion,
+                originalKey = ex?.originalKey, originalVersion = ex?.originalVersion,
                 updatedAt = updated, deletedAt = null, syncedAt = now,
             )
             report.pullBytes(uc, desired, extra = if (desired.cutoutKey != null || desired.catalogId != null) IMAGE_URL_BYTES else 0)

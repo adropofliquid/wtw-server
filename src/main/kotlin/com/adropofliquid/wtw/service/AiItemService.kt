@@ -89,7 +89,7 @@ class AiItemService(
         if (photo == null || photo.isEmpty) throw ApiException.validation("photo is required")
         if (photo.size > props.image.uploadMaxBytes) throw ApiException.tooLarge("photo is larger than ${props.image.uploadMaxBytes} bytes")
         val bytes = photo.bytes
-        if (!isJpeg(bytes) && !isPng(bytes) && !isWebp(bytes)) throw ApiException.validation("photo must be a jpeg, png or webp image")
+        if (images.format(bytes) == null) throw ApiException.validation("photo must be a jpeg, png or webp image")
         return bytes
     }
 
@@ -172,10 +172,6 @@ class AiItemService(
         "accessories", "accessory" -> "accessories"
         else -> null
     }
-
-    private fun isJpeg(b: ByteArray) = b.size > 3 && b[0] == 0xFF.toByte() && b[1] == 0xD8.toByte() && b[2] == 0xFF.toByte()
-    private fun isPng(b: ByteArray) = b.size > 8 && b[0] == 0x89.toByte() && b[1] == 'P'.code.toByte() && b[2] == 'N'.code.toByte() && b[3] == 'G'.code.toByte()
-    private fun isWebp(b: ByteArray) = b.size > 12 && String(b, 0, 4, Charsets.US_ASCII) == "RIFF" && String(b, 8, 4, Charsets.US_ASCII) == "WEBP"
 
     private companion object {
         const val GEMINI_MAX_SIDE = 1024

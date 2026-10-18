@@ -137,6 +137,8 @@ data class ItemDto(
     /** Stable API link to the cut-out, or the Library image link for a catalog item with no own cut-out. */
     val cutoutUrl: String?,
     val generatedUrl: String?,
+    /** Stable API link to the backed-up original photo, or null (none uploaded, or a tombstone). */
+    val originalUrl: String? = null,
 )
 
 data class PieceDto(val itemId: String, val x: Float, val y: Float, val scale: Float, val rotation: Float, val z: Int)

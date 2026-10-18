@@ -72,7 +72,14 @@ data class WtwProperties(
         val localDir: String = ".local-storage",
     )
 
-    data class Image(val maxSide: Int = 600, val webpQuality: Int = 80, val uploadMaxBytes: Long = 10L * 1024 * 1024)
+    /** `original*`: the backed-up original photo. Kept as sent up to this size; larger ones are shrunk to WebP. */
+    data class Image(
+        val maxSide: Int = 600,
+        val webpQuality: Int = 80,
+        val uploadMaxBytes: Long = 10L * 1024 * 1024,
+        val originalMaxSide: Int = 2048,
+        val originalWebpQuality: Int = 85,
+    )
 
     data class RevenueCat(
         val apiKey: String = "",

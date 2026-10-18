@@ -538,7 +538,8 @@ Response 200 (real output, shortened only in `reasoning`):
     "poolConsent": false,
     "poolFilter": "passed",
     "cutoutUrl": "https://api-test.whattowearapp.com/mirror/items/doc-item-1/images/cutout?v=4b787be2",
-    "generatedUrl": "https://api-test.whattowearapp.com/mirror/items/doc-item-1/images/generated?v=0"
+    "generatedUrl": "https://api-test.whattowearapp.com/mirror/items/doc-item-1/images/generated?v=0",
+    "originalUrl": "https://api-test.whattowearapp.com/mirror/items/doc-item-1/images/original?v=6369638b"
   }],
   "outfits": [{
     "id": "doc-outfit-1",
@@ -593,6 +594,7 @@ All six lists are always present (maybe empty).
 |---|---|
 | `cutoutUrl` | Stable link to the item's own cut-out (WebP), served by this API (see [Images](#images-stable-links)). If the item has no own cut-out but its `catalogId` is an active Library item, this is the Library image link instead. Null for a tombstone. |
 | `generatedUrl` | Stable link to the AI studio image (WebP), or null. Null for a tombstone. |
+| `originalUrl` | Stable link to the backed-up original photo (JPEG, PNG or WebP, longest side ≤ 2048 px), or null when none was uploaded. Null for a tombstone. |
 
 The links never expire. They change only when the image changes (`?v=`), so the app may store them and cache
 the images by URL. Fetch them with the auth header.
@@ -632,18 +634,24 @@ App notes:
 
 #### 10. PUT `/mirror/items/{itemId}/images/{kind}`
 
-Uploads the cut-out or the AI studio image for an item that is already pushed.
+Uploads the cut-out, the AI studio image, or the original photo for an item that is already pushed.
 
 | Part | Value |
 |---|---|
 | `itemId` (path) | the item id |
-| `kind` (path) | `cutout` or `generated` |
+| `kind` (path) | `cutout`, `generated` or `original` |
 | Body | **raw image bytes** (not multipart) |
 | `Content-Type` | `image/png`, `image/webp` or `image/jpeg` |
 | Size limit | `UPLOAD_MAX_BYTES` (default 10 MB = 10485760 bytes) |
 
-The server decodes the bytes (by content, not by header), shrinks the image so the longest side is at most
-600 px (never upscales), and stores it as WebP (quality 80). A new upload overwrites the old one.
+The server decodes the bytes (by content, not by header).
+- `cutout`, `generated`: shrunk so the longest side is at most 600 px (never upscales) and stored as WebP (quality 80).
+- `original`: the photo before background removal, so a restore keeps it. Stored as sent when it is a JPEG, PNG or
+  WebP whose longest side is at most 2048 px (`IMAGE_ORIGINAL_MAX_SIDE`); otherwise shrunk to 2048 px and stored as
+  WebP (quality 85). Send a downscaled copy (≤ 2048 px, JPEG or WebP at ~85), not the camera file. Stored in the
+  user bucket under `user-raw/{uid}/`.
+
+A new upload replaces the old image and gets a new link (`?v=`). Over the size limit → 413 `TOO_LARGE`.
 
 Response 200:
 
@@ -1363,7 +1371,7 @@ Errors: 400 `VALIDATION` (`"latitude and longitude are required"`, `"latitude mu
 ### 28. DELETE `/account`
 
 **App client needed.** Deletes everything the server holds for the caller:
-all stored images under `users/{uid}/`, every mirror row, AI sessions and suggestions, ledger rows,
+all stored images under `users/{uid}/` and `user-raw/{uid}/` (original photos), every mirror row, AI sessions and suggestions, ledger rows,
 push tokens, feedback, the profile row, and RevenueCat event rows for this uid.
 
 - Request: no body.

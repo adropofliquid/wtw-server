@@ -47,6 +47,18 @@ class ImageProcessor(private val props: WtwProperties) {
         return out
     }
 
+    /** File extension and MIME type from the bytes (not a header), or null if not PNG, JPEG or WebP. */
+    fun format(b: ByteArray): Pair<String, String>? = when {
+        isJpeg(b) -> "jpg" to "image/jpeg"
+        isPng(b) -> "png" to "image/png"
+        isWebp(b) -> "webp" to "image/webp"
+        else -> null
+    }
+
+    fun isJpeg(b: ByteArray) = b.size > 3 && b[0] == 0xFF.toByte() && b[1] == 0xD8.toByte() && b[2] == 0xFF.toByte()
+    fun isPng(b: ByteArray) = b.size > 8 && b[0] == 0x89.toByte() && b[1] == 'P'.code.toByte() && b[2] == 'N'.code.toByte() && b[3] == 'G'.code.toByte()
+    fun isWebp(b: ByteArray) = b.size > 12 && String(b, 0, 4, Charsets.US_ASCII) == "RIFF" && String(b, 8, 4, Charsets.US_ASCII) == "WEBP"
+
     fun encodeWebp(img: BufferedImage, quality: Int): ByteArray {
         val writer = ImageIO.getImageWritersByMIMEType("image/webp").asSequence().firstOrNull()
             ?: error("No WebP ImageIO writer on the classpath")

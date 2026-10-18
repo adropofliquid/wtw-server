@@ -85,6 +85,7 @@ class MirrorPullService(
             archived = archived, catalogId = catalogId, source = source, poolConsent = poolConsent, poolFilter = poolFilter,
             cutoutUrl = cutoutUrl,
             generatedUrl = if (live && generatedKey != null) urls.item(id, MirrorPushService.GENERATED, generatedVersion) else null,
+            originalUrl = if (live && originalKey != null) urls.item(id, MirrorPushService.ORIGINAL, originalVersion) else null,
         )
     }
 

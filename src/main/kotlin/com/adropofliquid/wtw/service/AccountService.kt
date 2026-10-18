@@ -12,7 +12,7 @@ import org.springframework.transaction.support.TransactionTemplate
 
 /**
  * Route 28, DELETE /account (brief 4.9). Idempotent. Steps, in order:
- * 1. delete every object under `users/{uid}/` in the user bucket;
+ * 1. delete every object under `users/{uid}/` and `user-raw/{uid}/` in the user bucket;
  * 2. in one transaction, delete every row with this user_id (no FKs cascade, ruling 9.1), then the profile row;
  * 3. delete revenuecat_event rows for this app_user_id;
  * 4. evict the uid from the caches and log one line.
@@ -44,7 +44,7 @@ class AccountService(
     private val tx = TransactionTemplate(txManager)
 
     fun delete(uid: String) {
-        val objects = storage.deletePrefix(Bucket.USER, Keys.userPrefix(uid))
+        val objects = storage.deletePrefix(Bucket.USER, Keys.userPrefix(uid)) + storage.deletePrefix(Bucket.USER, Keys.rawPrefix(uid))
         val counts = tx.execute {
             val c = linkedMapOf(
                 "items" to items.deleteByUserId(uid),

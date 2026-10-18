@@ -12,7 +12,8 @@ class StoredObject(val bytes: ByteArray, val contentType: String?)
  * - STORAGE_MODE=s3 (prod default): S3ObjectStorage (S3, Cloudflare R2 or MinIO; S3-compatible API).
  * - STORAGE_MODE=local (dev default): LocalObjectStorage (files under STORAGE_LOCAL_DIR).
  *
- * Keys (brief 5.4): `users/{uid}/items/{itemId}/cutout.webp`, `.../generated.webp`, `library/{libraryId}.webp`.
+ * Keys (brief 5.4): `users/{uid}/items/{itemId}/cutout.webp`, `.../generated.webp`, `library/{libraryId}.webp`,
+ * and the original photo at `user-raw/{uid}/items/{itemId}/original.{jpg|png|webp}`.
  * Use [Keys] to build them.
  */
 interface ObjectStorage {
@@ -27,7 +28,10 @@ interface ObjectStorage {
 object Keys {
     fun userPrefix(uid: String) = "users/$uid/"
     fun itemImage(uid: String, itemId: String, kind: String) = "users/$uid/items/$itemId/$kind.webp"
+    /** The original photo: its own prefix, extension as stored (jpg, png or webp). */
+    fun itemOriginal(uid: String, itemId: String, ext: String) = "user-raw/$uid/items/$itemId/original.$ext"
+    fun rawPrefix(uid: String) = "user-raw/$uid/"
     fun library(libraryId: String) = "library/$libraryId.webp"
-    /** A key safe to log: the uid in `users/{uid}/` is replaced by its hash. */
-    fun forLog(key: String) = key.replace(Regex("^users/([^/]+)/")) { "users/${uidHash(it.groupValues[1])}/" }
+    /** A key safe to log: the uid in `users/{uid}/` or `user-raw/{uid}/` is replaced by its hash. */
+    fun forLog(key: String) = key.replace(Regex("^(users|user-raw)/([^/]+)/")) { "${it.groupValues[1]}/${uidHash(it.groupValues[2])}/" }
 }
