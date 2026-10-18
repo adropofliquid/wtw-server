@@ -12,4 +12,7 @@ data class LedgerResponse(
     /** OUTFIT_SUGGESTION, AI_IMAGE, OUTFIT_DESCRIPTION → credits. */
     val costs: Map<String, Int>,
     val freeItemLimit: Int,
+    /** What a free and a premium user get each week, so the paywall shows the same numbers as the meter. */
+    val freeWeeklyCredits: Int,
+    val premiumWeeklyCredits: Int,
 )

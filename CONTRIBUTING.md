@@ -46,3 +46,4 @@ Use a stable `ref` when a repeat must not charge twice: suggestion start, the AI
 
 ## Recipe: change a live number
 Edit `app_config` in SQL (`UPDATE app_config SET config_map = jsonb_set(config_map, '{free_weekly_credits}', '10') WHERE name = 'ledger';`). It applies within 5 minutes. No deploy.
+To change a default for fresh databases too: add a migration with the same `UPDATE` and change the matching default in `LedgerSettings`. The money numbers and their one-statement update are in `API.md` "Changing the money numbers".

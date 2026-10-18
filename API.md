@@ -139,9 +139,9 @@ can change without a deploy (applied within 5 minutes). Today's values:
 | Key | Value | Used by |
 |---|---|---|
 | `cost_outfit_suggestion` | 1 | `/outfit/suggest/start`, once per session |
-| `cost_ai_image` | 2 | `/ai/generate-image` |
+| `cost_ai_image` | 3 | `/ai/generate-image` |
 | `cost_outfit_description` | 1 | `/ai/describe-outfit` |
-| `free_weekly_credits` / `premium_weekly_credits` | 7 / 100 | ledger |
+| `free_weekly_credits` / `premium_weekly_credits` | 5 / 50 | ledger; weekly credits do not roll over |
 | `free_daily_generations` / `premium_daily_generations` | 20 / 200 | suggestion generations per local day |
 | `max_attempts_per_session` | 10 | `/outfit/suggest/next` → `EXHAUSTED` |
 | `attributes_daily_cap` | 200 | `/ai/attributes` |
@@ -149,6 +149,21 @@ can change without a deploy (applied within 5 minutes). Today's values:
 | `free_item_limit` | 100 | shown in `GET /ledger`; the server does not enforce it |
 
 The app should read costs from `GET /ledger` (`costs`), not hard-code them.
+
+#### Changing the money numbers
+
+These are money model v1 (2026-10-18). A fresh database gets them from the migrations (V2, then V7).
+To change them on a running database, run one statement. It applies within 5 minutes, with no deploy:
+
+```sql
+UPDATE app_config
+SET config_map = config_map || '{"free_weekly_credits": 5, "premium_weekly_credits": 50, "cost_outfit_suggestion": 1, "cost_ai_image": 3, "cost_outfit_description": 1}'::jsonb
+WHERE name = 'ledger';
+```
+
+Change the numbers in the JSON as needed. Keys you leave out keep their value. A new weekly number
+applies from each user's next weekly grant (Monday). Credits already granted this week are never taken back.
+New costs apply to the next charge.
 
 ---
 
@@ -896,10 +911,10 @@ it fails the pool filter).
 
 Makes a clean studio image of the garment.
 
-- Cost: `cost_ai_image` (2). Charged **before** the Gemini call. If the call fails, the charge is refunded.
+- Cost: `cost_ai_image` (3). Charged **before** the Gemini call. If the call fails, the charge is refunded.
 - Response 200: raw PNG bytes, `Content-Type: image/png`, header `X-Credits-Balance` (balance after the charge).
   The PNG is at most 600 px on its longest side.
-- Errors: photo errors above, 402 `INSUFFICIENT_CREDITS` (`cost` = 2), 502 `UPSTREAM_FAILED`,
+- Errors: photo errors above, 402 `INSUFFICIENT_CREDITS` (`cost` = 3), 502 `UPSTREAM_FAILED`,
   504 `UPSTREAM_TIMEOUT` (both refunded).
 - App note: to store it, upload it with route 10 (`kind=generated`). Maps to `MeteredAction.AI_IMAGE`.
 
@@ -1177,15 +1192,17 @@ Response 200, header `X-Credits-Balance`:
 
 ```json
 {
-  "balance": 7,
-  "weeklyAllowance": 7,
-  "weeklyRemaining": 7,
+  "balance": 5,
+  "weeklyAllowance": 5,
+  "weeklyRemaining": 5,
   "purchasedRemaining": 0,
   "premium": false,
   "weekStart": "2026-10-05",
   "resetsAt": 1791759600000,
-  "costs": {"OUTFIT_SUGGESTION": 1, "AI_IMAGE": 2, "OUTFIT_DESCRIPTION": 1},
-  "freeItemLimit": 100
+  "costs": {"OUTFIT_SUGGESTION": 1, "AI_IMAGE": 3, "OUTFIT_DESCRIPTION": 1},
+  "freeItemLimit": 100,
+  "freeWeeklyCredits": 5,
+  "premiumWeeklyCredits": 50
 }
 ```
 
@@ -1200,6 +1217,8 @@ Response 200, header `X-Credits-Balance`:
 | `resetsAt` | ms | next Monday 00:00 in that timezone |
 | `costs` | object | keys `OUTFIT_SUGGESTION`, `AI_IMAGE`, `OUTFIT_DESCRIPTION` → int |
 | `freeItemLimit` | int | wardrobe size limit for free users (the device enforces it) |
+| `freeWeeklyCredits` | int | what a free user gets each week (config), for the paywall |
+| `premiumWeeklyCredits` | int | what a premium user gets each week (config), for the paywall |
 
 Spending takes weekly credits first, then purchased ones.
 
