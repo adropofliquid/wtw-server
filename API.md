@@ -38,7 +38,7 @@ There is no fixed base URL in the server. The app picks it from its own config.
 ### Auth
 
 Every route needs a signed-in user, except:
-`GET /health`, `POST /webhooks/revenuecat` (it has its own secret) and `/dev-files/**` (dev only).
+`GET /health` and `POST /webhooks/revenuecat` (it has its own secret).
 
 **Prod.** Send the Firebase ID token:
 
@@ -537,8 +537,8 @@ Response 200 (real output, shortened only in `reasoning`):
     "source": "camera",
     "poolConsent": false,
     "poolFilter": "passed",
-    "cutoutUrl": "http://localhost:8095/dev-files/user/users/api-doc-test/items/doc-item-1/cutout.webp",
-    "generatedUrl": "http://localhost:8095/dev-files/user/users/api-doc-test/items/doc-item-1/generated.webp"
+    "cutoutUrl": "https://api-test.whattowearapp.com/mirror/items/doc-item-1/images/cutout?v=4b787be2",
+    "generatedUrl": "https://api-test.whattowearapp.com/mirror/items/doc-item-1/images/generated?v=0"
   }],
   "outfits": [{
     "id": "doc-outfit-1",
@@ -591,11 +591,11 @@ All six lists are always present (maybe empty).
 
 | Field | Meaning |
 |---|---|
-| `cutoutUrl` | Time-limited GET URL of the item's own cut-out (WebP). If the item has no own cut-out but its `catalogId` is an active Library item, this is the Library image URL instead. Null for a tombstone. |
-| `generatedUrl` | Time-limited GET URL of the AI studio image (WebP), or null. Null for a tombstone. |
+| `cutoutUrl` | Stable link to the item's own cut-out (WebP), served by this API (see [Images](#images-stable-links)). If the item has no own cut-out but its `catalogId` is an active Library item, this is the Library image link instead. Null for a tombstone. |
+| `generatedUrl` | Stable link to the AI studio image (WebP), or null. Null for a tombstone. |
 
-URLs are valid for `STORAGE_PRESIGN_TTL` (default 7 days). Download the image soon; do not store the URL as
-a long-lived reference. In dev they point at `/dev-files/...` on the same server.
+The links never expire. They change only when the image changes (`?v=`), so the app may store them and cache
+the images by URL. Fetch them with the auth header.
 
 **Outfit fields on pull.** As push. `pieces` is never null and is sorted by `z` (lowest first).
 
@@ -650,11 +650,15 @@ Response 200:
 ```json
 {
   "key": "users/api-doc-test/items/doc-item-1/cutout.webp",
-  "url": "http://localhost:8095/dev-files/user/users/api-doc-test/items/doc-item-1/cutout.webp"
+  "url": "https://api-test.whattowearapp.com/mirror/items/doc-item-1/images/cutout?v=4b787be2"
 }
 ```
 
-`url` is a time-limited GET URL, like the pull URLs.
+`url` is the image's stable link, the same one pull returns. A new upload gives a new `?v=`.
+
+**GET on the same path** (`/mirror/items/{itemId}/images/{kind}`) returns the image: the caller's own items only.
+Another user's item, a tombstone, or no image of that kind → 404 `NOT_FOUND`. Headers and caching: see
+[Images](#images-stable-links).
 
 Errors:
 
@@ -692,7 +696,7 @@ Response 200 — an array (real output; one starter, one generated):
     "styles": ["masculine", "feminine", "androgynous"],
     "brand": null,
     "keywords": [],
-    "imageUrl": "http://localhost:8095/dev-files/library/library/7b0e9857-646b-4a6b-bca5-4e2142c7bc2b.webp",
+    "imageUrl": "https://api-test.whattowearapp.com/image/7b0e9857-646b-4a6b-bca5-4e2142c7bc2b?v=mv360pvg",
     "attributes": null
   },
   {
@@ -705,7 +709,7 @@ Response 200 — an array (real output; one starter, one generated):
     "styles": [],
     "brand": "Adidas",
     "keywords": ["slide sandals", "black", "adidas", "adilette", "..."],
-    "imageUrl": "http://localhost:8095/dev-files/library/library/adidas-adilette-black.webp",
+    "imageUrl": "https://api-test.whattowearapp.com/image/adidas-adilette-black?v=mv360pvg",
     "attributes": {
       "name": "Adidas Adilette, black", "category": "shoes", "description": "Adidas Adilette slide sandals in black.",
       "formality": "casual", "polish": "casual", "fitShape": "relaxed", "layeringRole": "standalone",
@@ -725,7 +729,7 @@ Response 200 — an array (real output; one starter, one generated):
 | `vibes` | string[], at least one of the six vibe words (see Profile). Every item has at least one |
 | `styles`, `keywords` | string[] |
 | `brand` | string or null |
-| `imageUrl` | string. Presigned URL of the WebP image, valid for `STORAGE_PRESIGN_TTL` (7 days). Do not store it; refetch `/library` for fresh URLs. |
+| `imageUrl` | string. Stable link to the WebP image (route 13), versioned by `?v=`. It may be stored and cached by URL; fetch it with the auth header. |
 | `attributes` | superset attributes object, or null (null for starters) |
 
 Vibe tags come from the seed (`VibeTagger`), from each item's garment type, colours, brand, formality and polish.
@@ -737,6 +741,10 @@ have several). The catalog is mostly neutral basics, so Colourful is small.
 
 App note: this is the KMP `CatalogItem` plus `source`, `brand`, `keywords` and `imageUrl`. Decode with
 `ignoreUnknownKeys`. The list is cached on the server for 10 minutes.
+
+**Refetching cheaply.** The response has a weak `ETag` (`W/"lib-582-…"`). Send it back as `If-None-Match`: when
+the Library has not changed, the answer is **304** with no body. Send `Accept-Encoding: gzip` (most clients do):
+the full list is about 405 KB plain, about 43 KB gzipped.
 
 ### 12. GET `/user/onboarding/starter-items`
 
@@ -758,11 +766,31 @@ Response 200 — an array (shape from code; count checked by curl):
 
 ### 13. GET `/image/{id}`
 
-**Compat** route for `HttpCatalog.image`. Serves **Library images only**. Needs auth (send the token).
+The Library image route; `imageUrl` in route 11 points here (`/image/{id}?v=<version>`). Serves **Library images
+only**, from server memory after the first read. Needs auth (send the token).
 
-- Response 200: raw bytes, `Content-Type: image/webp`, `Cache-Control: max-age=86400, public`, `Content-Length` set.
+- Response 200: raw bytes, `Content-Type: image/webp`, `Cache-Control: public, max-age=31536000, immutable`,
+  `ETag`, `Content-Length`. See [Images](#images-stable-links).
 - Errors: 404 `NOT_FOUND` if `id` is not an active Library item, or its image file is missing.
-- User item images are never served here. Use the pull URLs.
+- User item images are never served here. Use the item image route (GET `/mirror/items/{itemId}/images/{kind}`).
+
+### Images: stable links
+
+Every image the app sees is served by this API on a link that never expires. Nothing points at storage directly.
+
+| Images | Link | Who can fetch | `Cache-Control` |
+|---|---|---|---|
+| Library | `{PUBLIC_BASE_URL}/image/{id}?v=<version>` | any signed-in user | `public, max-age=31536000, immutable` |
+| A user's own | `{PUBLIC_BASE_URL}/mirror/items/{itemId}/images/{kind}?v=<version>` | the owner only (others: 404) | `private, max-age=31536000, immutable` |
+
+- `v` changes when the image does (Library: the row's `updated_at`, bumped by the seed whenever it uploads an
+  image; own images: a hash of the stored WebP, set on upload; `0` for images stored before 2026-10-18 or copied
+  from the old server). Same link = same bytes, so cache by URL for good.
+- A link whose `v` is not the current one still returns the current image, with `Cache-Control: no-cache`, so it
+  is never cached for good under the old link. Refetch `/library` or pull to get the current link.
+- `ETag` = the version. `If-None-Match` with it → 304.
+- Send the auth header on every image request. The token is in a header, not the link, so the URL stays the cache key.
+- `private` only keeps shared caches (a CDN) from storing a user's image; the phone may cache it.
 
 ---
 
@@ -1364,12 +1392,10 @@ push tokens, feedback, the profile row, and RevenueCat event rows for this uid.
 
 | Route | Exists when | Auth | What it does |
 |---|---|---|---|
-| GET `/dev-files/{bucket}/{key...}` | `STORAGE_MODE=local` (dev default) | none | Serves files from local storage, so dev URLs work like the prod presigned and public URLs. `bucket` = `user` or `library`. 200 with the file's content type (e.g. `image/webp`), 404 `NOT_FOUND` if missing. |
 | POST `/dev/jobs/push-check?at={ms}` | profile is not `prod` | signed in | Runs the push-notification job now. `at` (optional) pretends the clock reads that time. Returns `{"candidates":1,"habitSent":0,"weeklySent":0,"deadTokensRemoved":0,"failed":0}`. |
 | POST `/dev/jobs/session-sweep?at={ms}` | profile is not `prod` | signed in | Marks sessions idle for 24 h as `ABANDONED`. Returns `{"abandoned":0}`. |
 
-In dev, the image URLs in pull, upload and Library responses point at `/dev-files/...` on the dev server
-(`STORAGE_LOCAL_BASE_URL`, default `http://localhost:{PORT}`). Also in dev: Gemini, rembg, WeatherAPI,
+Image links are built on `PUBLIC_BASE_URL` (default `http://localhost:{PORT}`). Also in dev: Gemini, rembg, WeatherAPI,
 RevenueCat and FCM are stubs. Premium users can be faked with `RC_DEV_PREMIUM_UIDS`.
 
 ---
@@ -1424,4 +1450,5 @@ The code is the source of truth. These are the places where it differs from, or 
 22. **PATCH name and PATCH style clear the field** when it is sent as null or left out. The brief does not say.
 23. **Dev auth.** Besides `X-Dev-User-Id`, `Bearer dev-token` signs in as `dev-user` outside prod. A bearer
     header always wins over `X-Dev-User-Id`.
-24. **`/dev-files/**` is public in dev.** It is listed in `SecurityConfig` but not in brief section 4.
+24. **Images through the API (2026-10-18).** Brief: presigned storage URLs. Code: stable, versioned API links
+    (see Images: stable links); no presigning anywhere.

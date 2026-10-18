@@ -1,13 +1,13 @@
 package com.adropofliquid.wtw.service
 
-import org.slf4j.LoggerFactory
-import com.adropofliquid.wtw.config.timed
-import com.adropofliquid.wtw.client.rembg.BackgroundRemovalClient
 import com.adropofliquid.wtw.client.gemini.GeminiCallLog
 import com.adropofliquid.wtw.client.gemini.GeminiClient
+import com.adropofliquid.wtw.client.rembg.BackgroundRemovalClient
 import com.adropofliquid.wtw.config.WtwProperties
+import com.adropofliquid.wtw.config.timed
 import com.google.genai.types.Schema
 import com.google.genai.types.Type
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 import tools.jackson.databind.json.JsonMapper

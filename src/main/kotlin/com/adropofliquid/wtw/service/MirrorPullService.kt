@@ -1,13 +1,10 @@
 package com.adropofliquid.wtw.service
 
-import org.slf4j.LoggerFactory
 import com.adropofliquid.wtw.config.msSince
-import com.adropofliquid.wtw.client.storage.Bucket
-import com.adropofliquid.wtw.client.storage.Keys
-import com.adropofliquid.wtw.client.storage.ObjectStorage
 import com.adropofliquid.wtw.domain.*
 import com.adropofliquid.wtw.dto.*
 import com.adropofliquid.wtw.repository.*
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -15,6 +12,7 @@ import java.time.Instant
 /**
  * Route 9, GET /mirror/pull?since={ms} (brief 4.2).
  * - since=0 (restore): live rows only, no tombstones.
+ * Image links are stable API links (ImageUrls); a catalog item with no own cut-out gets its Library image.
  * - since>0: every row with synced_at > since, tombstones included (suggestions: updated_at > since).
  * `serverTime` is read before the queries, so a write that lands during the pull is picked up next time.
  */
@@ -30,7 +28,7 @@ class MirrorPullService(
     private val suggestions: AiSuggestionRepository,
     private val sessions: AiSessionRepository,
     private val library: LibraryItemRepository,
-    private val storage: ObjectStorage,
+    private val urls: ImageUrls,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -54,7 +52,7 @@ class MirrorPullService(
         val sessionById = chunked(suggestionRows.mapNotNull { it.sessionId }.distinct()) { sessions.findAllById(it) }.associateBy { it.id }
         // Catalog items with no own cut-out show the library image; only ids that exist in the library.
         val catalogIds = itemRows.filter { it.cutoutKey == null && it.deletedAt == null }.mapNotNull { it.catalogId }.distinct()
-        val inLibrary = chunked(catalogIds) { library.findAllById(it) }.map { it.id }.toSet()
+        val inLibrary = chunked(catalogIds) { library.findAllById(it) }.filter { it.active }.associateBy { it.id }
         val queryMs = msSince(start)
 
         return MirrorPullResponse(
@@ -72,12 +70,12 @@ class MirrorPullService(
         }
     }
 
-    private fun MirrorItem.toDto(inLibrary: Set<String>): ItemDto {
+    private fun MirrorItem.toDto(inLibrary: Map<String, LibraryItem>): ItemDto {
         val live = deletedAt == null
         val cutoutUrl = when {
             !live -> null
-            cutoutKey != null -> storage.presignedUrl(Bucket.USER, cutoutKey!!)
-            catalogId != null && catalogId in inLibrary -> storage.presignedUrl(Bucket.LIBRARY, Keys.library(catalogId!!))
+            cutoutKey != null -> urls.item(id, MirrorPushService.CUTOUT, cutoutVersion)
+            catalogId != null -> inLibrary[catalogId!!]?.let { urls.library(it.id, it.updatedAt) }
             else -> null
         }
         return ItemDto(
@@ -86,7 +84,7 @@ class MirrorPullService(
             price = price, currency = currency, purchaseDate = purchaseDate?.toString(), brand = brand,
             archived = archived, catalogId = catalogId, source = source, poolConsent = poolConsent, poolFilter = poolFilter,
             cutoutUrl = cutoutUrl,
-            generatedUrl = if (live) generatedKey?.let { storage.presignedUrl(Bucket.USER, it) } else null,
+            generatedUrl = if (live && generatedKey != null) urls.item(id, MirrorPushService.GENERATED, generatedVersion) else null,
         )
     }
 

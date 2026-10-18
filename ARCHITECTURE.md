@@ -35,7 +35,7 @@ src/main/resources/
 | `SPRING_PROFILES_ACTIVE` | `prod` (set in the Dockerfile) | `dev` (default for `./gradlew bootRun`) |
 | Auth | Firebase ID token | `Bearer dev-token` → `dev-user`; `X-Dev-User-Id: <uid>` |
 | Gemini, WeatherAPI, RevenueCat, FCM | real clients | stubs with canned results, no network (Gemini: `GEMINI_MODE=local` → a local model, README) |
-| Storage (`STORAGE_MODE`) | `s3` | `local` (files in `.local-storage/`, served at `/dev-files/...`) |
+| Storage (`STORAGE_MODE`) | `s3` | `local` (files in `.local-storage/`, read through the API like S3) |
 | rembg (`REMBG_MODE`) | `http` | `stub` |
 
 ## Key rules

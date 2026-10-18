@@ -1,11 +1,11 @@
 package com.adropofliquid.wtw.service
 
-import com.adropofliquid.wtw.config.msSince
 import com.adropofliquid.wtw.client.storage.Bucket
 import com.adropofliquid.wtw.client.storage.Keys
 import com.adropofliquid.wtw.client.storage.ObjectStorage
 import com.adropofliquid.wtw.config.RequestLoggingFilter.Companion.uidHash
 import com.adropofliquid.wtw.config.WtwProperties
+import com.adropofliquid.wtw.config.msSince
 import com.adropofliquid.wtw.domain.*
 import com.adropofliquid.wtw.dto.*
 import com.adropofliquid.wtw.repository.*
@@ -106,6 +106,8 @@ class MirrorPushService(
                         .forEach { keysToDelete += it }
                     e.cutoutKey = null
                     e.generatedKey = null
+                    e.cutoutVersion = null
+                    e.generatedVersion = null
                 } else {
                     e.deletedAt = null
                     row.createdAt?.let { e.createdAt = ms(it) }

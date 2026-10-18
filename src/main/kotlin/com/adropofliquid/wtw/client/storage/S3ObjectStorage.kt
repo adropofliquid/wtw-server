@@ -1,8 +1,8 @@
 package com.adropofliquid.wtw.client.storage
 
+import com.adropofliquid.wtw.config.WtwProperties
 import com.adropofliquid.wtw.config.timed
 import org.slf4j.LoggerFactory
-import com.adropofliquid.wtw.config.WtwProperties
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
@@ -12,7 +12,6 @@ import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.S3Configuration
 import software.amazon.awssdk.services.s3.model.*
-import software.amazon.awssdk.services.s3.presigner.S3Presigner
 import java.net.URI
 
 /**
@@ -28,11 +27,6 @@ class S3ObjectStorage(private val props: WtwProperties) : ObjectStorage {
     private val pathStyle = S3Configuration.builder().pathStyleAccessEnabled(s.endpoint.isNotBlank()).build()
 
     private val client: S3Client = S3Client.builder().credentialsProvider(creds).region(region)
-        .serviceConfiguration(pathStyle)
-        .apply { if (s.endpoint.isNotBlank()) endpointOverride(URI(s.endpoint)) }
-        .build()
-
-    private val presigner: S3Presigner = S3Presigner.builder().credentialsProvider(creds).region(region)
         .serviceConfiguration(pathStyle)
         .apply { if (s.endpoint.isNotBlank()) endpointOverride(URI(s.endpoint)) }
         .build()
@@ -85,8 +79,4 @@ class S3ObjectStorage(private val props: WtwProperties) : ObjectStorage {
             }
         return count
     }
-
-    override fun presignedUrl(bucket: Bucket, key: String): String = presigner.presignGetObject {
-        it.signatureDuration(s.presignTtl).getObjectRequest(GetObjectRequest.builder().bucket(name(bucket)).key(key).build())
-    }.url().toString()
 }

@@ -89,7 +89,7 @@ class LibrarySeedRunner(
             row.vibes = Vocab.VIBES.filter { it in mapped || it in tagged }
             upsert(row, t)
             val local = listOf(dir.resolve(fileName), dir.resolve("onboarding-clothing-items").resolve(fileName)).firstOrNull { Files.isRegularFile(it) }
-            val ok = uploadImage(row.imageKey, t) {
+            val ok = uploadImage(id, row.imageKey, t) {
                 local?.let { Files.readAllBytes(it) } ?: oldS3?.let { fetchOld(it, fileName) }
             }
             if (!ok) { t.missing += "starter $id ($fileName)"; missingStarterNames += fileName }
@@ -114,7 +114,7 @@ class LibrarySeedRunner(
             row.vibes = VibeTagger.tag(row)
             upsert(row, t)
             val file = dir.resolve(c["image"]?.toString()?.ifBlank { null } ?: "cutout/$id.png").normalize()
-            val ok = uploadImage(row.imageKey, t) { if (file.startsWith(dir) && Files.isRegularFile(file)) Files.readAllBytes(file) else null }
+            val ok = uploadImage(id, row.imageKey, t) { if (file.startsWith(dir) && Files.isRegularFile(file)) Files.readAllBytes(file) else null }
             if (!ok) t.missing += "generated $id (${dir.relativize(file)})"
         }
 
@@ -152,11 +152,15 @@ class LibrarySeedRunner(
         i.keywords.toList(), i.vibes.toList(), i.styles.toList(), i.imageKey,
     )
 
-    /** Returns false when the object is not stored and no source bytes were found. */
-    private fun uploadImage(key: String, t: Tally, source: () -> ByteArray?): Boolean {
+    /**
+     * Returns false when the object is not stored and no source bytes were found. An upload bumps the row's
+     * `updated_at`: that is the image's `?v=` (ImageUrls), so phones fetch a replaced image instead of their cached one.
+     */
+    private fun uploadImage(id: String, key: String, t: Tally, source: () -> ByteArray?): Boolean {
         if (storage.exists(Bucket.LIBRARY, key)) { t.skipped++; return true }
         val bytes = source() ?: return false
         storage.put(Bucket.LIBRARY, key, images.toWebp(bytes), "image/webp", "public, max-age=86400")
+        repo.findById(id).ifPresent { it.updatedAt = Instant.now(); repo.save(it) }
         t.uploaded++
         return true
     }

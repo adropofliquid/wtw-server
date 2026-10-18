@@ -134,7 +134,7 @@ data class ItemDto(
     val source: String?,
     val poolConsent: Boolean,
     val poolFilter: String?,
-    /** Presigned GET of the cut-out, or the library image URL for a catalog item with no own cut-out. */
+    /** Stable API link to the cut-out, or the Library image link for a catalog item with no own cut-out. */
     val cutoutUrl: String?,
     val generatedUrl: String?,
 )

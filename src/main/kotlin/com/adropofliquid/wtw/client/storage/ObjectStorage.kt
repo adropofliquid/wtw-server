@@ -2,7 +2,7 @@ package com.adropofliquid.wtw.client.storage
 
 import com.adropofliquid.wtw.config.RequestLoggingFilter.Companion.uidHash
 
-/** The two buckets (brief 5.4). Both private; clients read through presigned GETs. */
+/** The two buckets (brief 5.4). Both private; clients read images through the API (ImageUrls), never from storage directly. */
 enum class Bucket { USER, LIBRARY }
 
 class StoredObject(val bytes: ByteArray, val contentType: String?)
@@ -10,7 +10,7 @@ class StoredObject(val bytes: ByteArray, val contentType: String?)
 /**
  * Object storage behind one interface.
  * - STORAGE_MODE=s3 (prod default): S3ObjectStorage (S3, Cloudflare R2 or MinIO; S3-compatible API).
- * - STORAGE_MODE=local (dev default): LocalObjectStorage (files under STORAGE_LOCAL_DIR, served at /dev-files/...).
+ * - STORAGE_MODE=local (dev default): LocalObjectStorage (files under STORAGE_LOCAL_DIR).
  *
  * Keys (brief 5.4): `users/{uid}/items/{itemId}/cutout.webp`, `.../generated.webp`, `library/{libraryId}.webp`.
  * Use [Keys] to build them.
@@ -22,8 +22,6 @@ interface ObjectStorage {
     fun delete(bucket: Bucket, key: String)
     /** Deletes every object whose key starts with [prefix]. Returns how many were deleted. */
     fun deletePrefix(bucket: Bucket, prefix: String): Int
-    /** Time-limited GET URL for a private object (STORAGE_PRESIGN_TTL). */
-    fun presignedUrl(bucket: Bucket, key: String): String
 }
 
 object Keys {

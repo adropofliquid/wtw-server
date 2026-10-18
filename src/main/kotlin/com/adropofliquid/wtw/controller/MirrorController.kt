@@ -10,8 +10,11 @@ import com.adropofliquid.wtw.service.MirrorImageService
 import com.adropofliquid.wtw.service.MirrorPullService
 import com.adropofliquid.wtw.service.MirrorPushService
 import jakarta.servlet.http.HttpServletRequest
+import jakarta.servlet.http.HttpServletResponse
+import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.context.request.WebRequest
 
 /** Routes 8–10 (brief 4.2): mirror push, pull and item images. Not metered. */
 @RestController
@@ -48,5 +51,18 @@ class MirrorController(
         if (bytes.size > max) throw ApiException.tooLarge("Image over $max bytes")
         if (bytes.isEmpty()) throw ApiException.validation("Empty body")
         return imageService.upload(uid, itemId, kind, bytes)
+    }
+
+    /** The caller's own item image, on the stable link the pull and upload responses give. See [imageResponse]. */
+    @GetMapping("/items/{itemId}/images/{kind}")
+    fun readImage(
+        @AuthenticationPrincipal uid: String,
+        @PathVariable itemId: String,
+        @PathVariable kind: String,
+        req: WebRequest,
+        res: HttpServletResponse,
+    ): ResponseEntity<ByteArray>? {
+        val img = imageService.read(uid, itemId, kind)
+        return imageResponse(req, res, img.bytes, img.version, img.contentType, private = true)
     }
 }

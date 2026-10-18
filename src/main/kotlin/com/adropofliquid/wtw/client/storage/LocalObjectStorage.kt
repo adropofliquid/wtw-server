@@ -1,8 +1,8 @@
 package com.adropofliquid.wtw.client.storage
 
+import com.adropofliquid.wtw.config.WtwProperties
 import com.adropofliquid.wtw.config.timed
 import org.slf4j.LoggerFactory
-import com.adropofliquid.wtw.config.WtwProperties
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 import java.nio.file.Files
@@ -10,7 +10,7 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.io.path.*
 
-/** STORAGE_MODE=local (dev default): stores objects as files under `STORAGE_LOCAL_DIR/{bucket}/{key}`. URLs point at DevFilesController. */
+/** STORAGE_MODE=local (dev default): stores objects as files under `STORAGE_LOCAL_DIR/{bucket}/{key}`. Read through the API like S3 objects. */
 @Component
 @ConditionalOnProperty(name = ["wtw.storage.mode"], havingValue = "local")
 class LocalObjectStorage(private val props: WtwProperties) : ObjectStorage {
@@ -55,9 +55,6 @@ class LocalObjectStorage(private val props: WtwProperties) : ObjectStorage {
         files.forEach { it.deleteIfExists() }
         return files.size
     }
-
-    override fun presignedUrl(bucket: Bucket, key: String) =
-        "${props.storage.localBaseUrl.trimEnd('/')}/dev-files/${bucket.name.lowercase()}/$key"
 
     companion object {
         fun contentTypeOf(key: String) = when (key.substringAfterLast('.').lowercase()) {

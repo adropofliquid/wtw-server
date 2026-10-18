@@ -11,6 +11,8 @@ import java.time.Duration
 data class WtwProperties(
     val databaseUrl: String,
     val dbPoolSize: Int = 10,
+    /** The API's public address, used to build image links (e.g. https://api-test.whattowearapp.com). */
+    val publicBaseUrl: String = "http://localhost:8080",
     val auth: Auth = Auth(),
     val ai: Ai = Ai(),
     val rembg: Rembg = Rembg(),
@@ -67,9 +69,7 @@ data class WtwProperties(
         val secretKey: String = "",
         val bucketUser: String = "wtw-user",
         val bucketLibrary: String = "wtw-library",
-        val presignTtl: Duration = Duration.ofDays(7),
         val localDir: String = ".local-storage",
-        val localBaseUrl: String = "http://localhost:8080",
     )
 
     data class Image(val maxSide: Int = 600, val webpQuality: Int = 80, val uploadMaxBytes: Long = 10L * 1024 * 1024)

@@ -262,9 +262,10 @@ class DataCopyService(
                 category = category, attributes = DataCopyTransforms.attributes(i), archived = false,
                 catalogId = if (i.ownUpload) null else i.imageMetadataId,
                 cutoutKey = ex?.cutoutKey ?: newKey, generatedKey = ex?.generatedKey,
+                cutoutVersion = ex?.cutoutVersion, generatedVersion = ex?.generatedVersion,
                 updatedAt = updated, deletedAt = null, syncedAt = now,
             )
-            report.pullBytes(uc, desired, extra = if (desired.cutoutKey != null || desired.catalogId != null) PRESIGNED_URL_BYTES else 0)
+            report.pullBytes(uc, desired, extra = if (desired.cutoutKey != null || desired.catalogId != null) IMAGE_URL_BYTES else 0)
             when (lww(ex?.updatedAt, updated)) {
                 Dec.INSERT -> { st.inserted++; delta.inc("items"); if (opts.apply) em.persist(desired) }
                 Dec.UPDATE -> { st.updated++; if (opts.apply) em.merge(desired) }
@@ -740,8 +741,8 @@ class DataCopyService(
     }
 
     private companion object {
-        /** Rough size of a presigned S3/R2 GET URL in the pull (cutoutUrl). */
-        const val PRESIGNED_URL_BYTES = 450
+        /** Rough size of an image link in the pull (cutoutUrl). */
+        const val IMAGE_URL_BYTES = 130
 
         fun JdbcUrlsMatch(a: String, b: String): Boolean = runCatching {
             com.adropofliquid.wtw.config.JdbcUrl.fromDatabaseUrl(a).url.substringBefore('?') ==

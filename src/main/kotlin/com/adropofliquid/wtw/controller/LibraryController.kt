@@ -3,33 +3,30 @@ package com.adropofliquid.wtw.controller
 import com.adropofliquid.wtw.dto.LibraryItemResponse
 import com.adropofliquid.wtw.dto.StarterItemResponse
 import com.adropofliquid.wtw.service.LibraryService
-import org.springframework.http.CacheControl
-import org.springframework.http.MediaType
+import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RestController
-import java.time.Duration
+import org.springframework.web.context.request.WebRequest
 
-/** Library routes 11–13 (brief 4.3). Routes 12 and 13 are compat routes for the app's current HttpCatalog. */
+/** Library routes 11–13 (brief 4.3). Route 12 is a compat route for the app's current HttpCatalog. */
 @RestController
 class LibraryController(private val library: LibraryService) {
 
+    /** ETag over the active rows; If-None-Match → 304 with no body. */
     @GetMapping("/library")
-    fun all(): List<LibraryItemResponse> = library.all()
+    fun all(req: WebRequest): List<LibraryItemResponse>? =
+        if (req.checkNotModified(library.listEtag())) null else library.all()
 
     @GetMapping("/user/onboarding/starter-items")
     fun starterItems(@AuthenticationPrincipal uid: String): List<StarterItemResponse> = library.starterItems(uid)
 
-    /** Library images only (never user images). WebP, cached a day by clients. */
+    /** Library images only (never user images). The link carries `?v=`; see [imageResponse]. */
     @GetMapping("/image/{id}")
-    fun image(@PathVariable id: String): ResponseEntity<ByteArray> {
-        val obj = library.image(id)
-        return ResponseEntity.ok()
-            .contentType(MediaType.parseMediaType("image/webp"))
-            .cacheControl(CacheControl.maxAge(Duration.ofDays(1)).cachePublic())
-            .contentLength(obj.bytes.size.toLong())
-            .body(obj.bytes)
+    fun image(@PathVariable id: String, req: WebRequest, res: HttpServletResponse): ResponseEntity<ByteArray>? {
+        val img = library.image(id)
+        return imageResponse(req, res, img.bytes, img.version, "image/webp", private = false)
     }
 }

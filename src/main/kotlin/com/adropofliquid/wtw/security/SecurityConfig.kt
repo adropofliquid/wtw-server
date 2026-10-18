@@ -13,7 +13,7 @@ import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 
 /**
- * Stateless. Public: `/health`, `/webhooks/revenuecat` (own shared-secret check), `/dev-files/...` (dev storage only).
+ * Stateless. Public: `/health`, `/webhooks/revenuecat` (own shared-secret check).
  * Web only: one-off commands (`--seed-library`, `--data-copy`) start without a web server and need no filter chain.
  */
 @Configuration
@@ -33,7 +33,7 @@ class SecurityConfig {
             .requestCache { it.disable() }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests {
-                it.requestMatchers("/health", "/webhooks/revenuecat", "/dev-files/**", "/error").permitAll()
+                it.requestMatchers("/health", "/webhooks/revenuecat", "/error").permitAll()
                 it.anyRequest().authenticated()
             }
             .exceptionHandling {

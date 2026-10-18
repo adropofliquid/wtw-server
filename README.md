@@ -98,8 +98,8 @@ Live numbers (credits, costs, caps, pack sizes, notification copy) are **not** e
 | `STORAGE_ENDPOINT`, `STORAGE_REGION` | empty (= AWS), `auto` | S3-compatible endpoint (R2: `https://<account>.r2.cloudflarestorage.com`) |
 | `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` | — | Storage credentials |
 | `STORAGE_BUCKET_USER`, `STORAGE_BUCKET_LIBRARY` | `wtw-user`, `wtw-library` | Private user images; public library images |
-| `STORAGE_PRESIGN_TTL` | `7d` | Life of presigned image URLs (user images and Library) |
-| `STORAGE_LOCAL_DIR`, `STORAGE_LOCAL_BASE_URL` | `.local-storage`, `http://localhost:$PORT` | `local` mode only |
+| `STORAGE_LOCAL_DIR` | `.local-storage` | `local` mode only |
+| `PUBLIC_BASE_URL` | `http://localhost:$PORT` | The API's public address. Image links are built on it: **set it on every deployed box** (e.g. `https://api-test.whattowearapp.com`) |
 | `IMAGE_MAX_SIDE`, `IMAGE_WEBP_QUALITY` | 600, 80 | Stored images |
 | `UPLOAD_MAX_BYTES` | 10485760 | Upload limit (also the multipart limit) |
 | `RC_API_KEY`, `RC_PROJECT_ID` | — | RevenueCat REST v2 |
@@ -169,7 +169,7 @@ dokku config:set wtw-server FIREBASE_CREDENTIALS_PATH=/app/credentials/firebase.
   GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/vertex.json VERTEX_PROJECT_ID=… VERTEX_LOCATION=global \
   STORAGE_ENDPOINT=… STORAGE_ACCESS_KEY=… STORAGE_SECRET_KEY=… STORAGE_BUCKET_USER=… STORAGE_BUCKET_LIBRARY=… \
   RC_API_KEY=… RC_PROJECT_ID=… RC_ENTITLEMENT_ID=… RC_WEBHOOK_AUTH=… \
-  WEATHER_API_KEY=… WEATHER_MAX_DAYS=… REMBG_URL=http://wtw-rembg.web:8000/rembg
+  WEATHER_API_KEY=… WEATHER_MAX_DAYS=… REMBG_URL=http://wtw-rembg.web:8000/rembg PUBLIC_BASE_URL=https://api.whatshouldiwear.app
 
 # Remover (its own repo: whattowear/imgbg-remover)
 dokku apps:create wtw-rembg
@@ -209,7 +209,7 @@ Every line carries `[rid/uid]`: a short request id and the uid hash. `grep <rid>
 | `mirror push ... txMs= deleteMs=` / `mirror pull ... queryMs= buildMs=` | sync | rows per table, DB time, image deletes or URL signing |
 | `mirror image convert kind= inBytes= outBytes= ms=` | route 10 | WebP conversion; the `storage put` line follows |
 | `storage put/get/delete/deletePrefix ms= bucket= key= bytes=` (`storage`) | every storage call | S3 or local disk |
-| `library cache load rows=` / `library list presign items=` | route 11 | DB load (every 10 min), URL signing per request |
+| `library cache load rows=` | route 11 | DB load (every 10 min) |
 | `upstream=weatherapi ok` / `upstream=revenuecat ok` / `upstream=fcm ok` | each call | `ms=`; failures log `failed` at WARN |
 | `org.hibernate.SQL_SLOW` | SQL over `LOG_SLOW_QUERY_MS` | the statement and its time |
 

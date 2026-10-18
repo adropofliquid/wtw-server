@@ -18,6 +18,11 @@ spring:
 
 server:
   port: ${PORT:8080}
+  # gzip JSON over 2 KB (GET /library: ~575 KB → about a sixth). Images are already compressed.
+  compression:
+    enabled: true
+    mime-types: application/json
+    min-response-size: 2KB
   shutdown: graceful
   error.whitelabel.enabled: false
 
@@ -40,6 +45,8 @@ logging:
 
 wtw:
   database-url: ${DATABASE_URL:postgres://wtw:wtw@localhost:5432/wtw}
+  # The API's public address; image links are built on it. Set it on every deployed box.
+  public-base-url: ${PUBLIC_BASE_URL:http://localhost:${PORT:8080}}
   db-pool-size: ${DB_POOL_SIZE:10}
   auth:
     dev-bypass-enabled: ${AUTH_DEV_BYPASS_ENABLED:false}
@@ -71,10 +78,8 @@ wtw:
     secret-key: ${STORAGE_SECRET_KEY:}
     bucket-user: ${STORAGE_BUCKET_USER:wtw-user}
     bucket-library: ${STORAGE_BUCKET_LIBRARY:wtw-library}
-    presign-ttl: ${STORAGE_PRESIGN_TTL:7d}
-    # Dev only: local-filesystem storage root and the base URL its files are served from.
+    # Dev only: local-filesystem storage root.
     local-dir: ${STORAGE_LOCAL_DIR:.local-storage}
-    local-base-url: ${STORAGE_LOCAL_BASE_URL:http://localhost:${PORT:8080}}
   image:
     max-side: ${IMAGE_MAX_SIDE:600}
     webp-quality: ${IMAGE_WEBP_QUALITY:80}

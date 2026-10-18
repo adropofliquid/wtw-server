@@ -28,6 +28,9 @@ class MirrorItem(
     var catalogId: String? = null,
     var cutoutKey: String? = null,
     var generatedKey: String? = null,
+    /** Changes when the image does; part of its stable URL (ImageUrls). Null = "0". */
+    var cutoutVersion: String? = null,
+    var generatedVersion: String? = null,
     var source: String? = null,
     var poolConsent: Boolean = false,
     var poolFilter: String? = null,
