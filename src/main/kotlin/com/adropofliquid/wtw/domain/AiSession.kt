@@ -28,7 +28,10 @@ class AiSession(
     @JdbcTypeCode(SqlTypes.JSON) @Column(columnDefinition = "jsonb") var wardrobeSnapshot: List<Map<String, Any?>>? = null,
     /** itemId -> ISO date. */
     @JdbcTypeCode(SqlTypes.JSON) @Column(columnDefinition = "jsonb") var recentlyWorn: Map<String, Any?>? = null,
+    /** ACTIVE, LOW_CONFIDENCE (latest answer was a refusal), COMPLETED or ABANDONED. */
     var status: String = "ACTIVE",
+    /** How many times the model refused in this session (kept even after an outfit follows). */
+    var refusalCount: Int = 0,
     var initiator: String = "USER_INITIATED",
     var attemptNumber: Int = 0,
     var tooWarm: Boolean = false,

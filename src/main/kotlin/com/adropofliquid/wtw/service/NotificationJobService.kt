@@ -28,7 +28,7 @@ data class PushCheckReport(val candidates: Int, val habitSent: Int, val weeklySe
  *   token, a valid timezone, and no push yet today (local date of last_notified_at).
  *   Habit builder: local hour 7, and yesterday (local) the user accepted a suggestion or has a WORN wear row.
  *   Weekly reset: Sunday, local hour 19. Copy from app_config. Sends to all the user's tokens; dead tokens are deleted.
- * - Session sweep, 03:00 UTC: ACTIVE ai_session rows idle for 24 h → ABANDONED.
+ * - Session sweep, 03:00 UTC: open (ACTIVE or LOW_CONFIDENCE) ai_session rows idle for 24 h → ABANDONED.
  */
 @Service
 class NotificationJobService(
@@ -119,10 +119,10 @@ class NotificationJobService(
         return report
     }
 
-    /** Marks ACTIVE sessions idle since [now] − 24 h as ABANDONED. Returns how many. */
+    /** Marks open sessions idle since [now] − 24 h as ABANDONED. Returns how many. */
     fun sweepSessions(now: Instant): Int {
         val n = tx.execute {
-            val idle = sessions.findByStatusAndLastActivityAtBefore("ACTIVE", now.minus(Duration.ofHours(24)))
+            val idle = sessions.findByStatusInAndLastActivityAtBefore(listOf("ACTIVE", "LOW_CONFIDENCE"), now.minus(Duration.ofHours(24)))
             idle.forEach { it.status = "ABANDONED"; it.updatedAt = now }
             idle.size
         }!!

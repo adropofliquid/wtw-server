@@ -345,6 +345,9 @@ class SuggestionService(
         session.updatedAt = now
         return when (val p = turn.parsed) {
             is Refusal -> {
+                // Recorded for the refusal-lane metric; the next outfit (refine "show me anyway", next) sets ACTIVE again.
+                session.status = LOW_CONFIDENCE
+                session.refusalCount += 1
                 sessions.save(session)
                 SuggestionResponse(LOW_CONFIDENCE, session.id, session.attemptNumber, failure = FailureDto(p.reason, p.missing))
             }
