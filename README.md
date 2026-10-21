@@ -88,8 +88,8 @@ Live numbers (credits, costs, caps, pack sizes, notification copy) are **not** e
 | `GEMINI_MODEL_SUGGEST` | `gemini-2.5-flash` | Suggestions, outfit description |
 | `GEMINI_MODEL_ATTRIBUTES` | `gemini-2.5-flash-lite` | Reading a photo |
 | `GEMINI_MODEL_IMAGE` | `gemini-3.1-flash-lite-image` | AI item image |
-| `AI_TIMEOUT_MS` | 600000 | Every Gemini call (except the image call) |
-| `AI_IMAGE_TIMEOUT_MS` | 600000 | The Gemini image call (`/ai/generate-image`). The app should wait 11 min on routes 15 and 16 (API.md). |
+| `AI_TIMEOUT_MS` | 270000 | Every Gemini text call (4.5 min; a suggestion turn can make two) |
+| `AI_IMAGE_TIMEOUT_MS` | 540000 | The Gemini image call (`/ai/generate-image`), 9 min. Both stay under the app's 10-min wait, so the server always answers first. |
 | `GEMINI_MODE` | `stub` | Not prod only: `stub` or `local` (see "Local development: a local model"). Prod always uses Vertex. |
 | `LOCAL_MODEL_URL`, `LOCAL_MODEL_NAME` | `http://localhost:11434`, `qwen2.5vl:3b` | `GEMINI_MODE=local` only: OpenAI-compatible server and model |
 | `REMBG_MODE`, `REMBG_URL`, `REMBG_TIMEOUT_MS` | `http`, `http://localhost:8000/rembg`, 60000 | Background removal service. The timeout covers one call |
@@ -159,8 +159,8 @@ dokku apps:create wtw-server
 dokku postgres:create wtw-db
 dokku postgres:link wtw-db wtw-server                 # sets DATABASE_URL
 dokku ports:set wtw-server http:80:8080 https:443:8080
-dokku domains:set wtw-server api.whatshouldiwear.app
-# nginx gives up after 60 s by default. Gemini calls may take up to 10 min and route 21 may wait in line 4 min.
+dokku domains:set wtw-server api-v2.whattowearapp.com   # the new app only; the old Flutter app keeps api.whattowearapp.com
+# nginx gives up after 60 s by default. AI routes may take up to 9 min and route 21 may wait in line 4 min.
 dokku nginx:set wtw-server proxy-read-timeout 660s
 dokku nginx:set wtw-server client-max-body-size 20m
 dokku proxy:build-config wtw-server
@@ -170,7 +170,7 @@ dokku config:set wtw-server FIREBASE_CREDENTIALS_PATH=/app/credentials/firebase.
   GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/vertex.json VERTEX_PROJECT_ID=… VERTEX_LOCATION=global \
   STORAGE_ENDPOINT=… STORAGE_ACCESS_KEY=… STORAGE_SECRET_KEY=… STORAGE_BUCKET_USER=… STORAGE_BUCKET_LIBRARY=… \
   RC_API_KEY=… RC_PROJECT_ID=… RC_ENTITLEMENT_ID=… RC_WEBHOOK_AUTH=… \
-  WEATHER_API_KEY=… WEATHER_MAX_DAYS=… REMBG_URL=http://wtw-rembg.web:8000/rembg PUBLIC_BASE_URL=https://api.whatshouldiwear.app
+  WEATHER_API_KEY=… WEATHER_MAX_DAYS=… REMBG_URL=http://wtw-rembg.web:8000/rembg PUBLIC_BASE_URL=https://api-v2.whattowearapp.com
 
 # Remover (its own repo: whattowear/imgbg-remover)
 dokku apps:create wtw-rembg

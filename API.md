@@ -858,9 +858,9 @@ Idempotency-Key: 3f1c9a2e-6b1d-4d8e-9a57-0c2f4b8e1d11
 - A retry after the first request **failed** (it was refunded), or after the stored result is gone (1 hour, or a
   server restart), gives 409 `IDEMPOTENCY_KEY_USED`. Send a new key to try again.
 
-**Timeouts.** The server gives Gemini up to 10 minutes on these routes (`AI_IMAGE_TIMEOUT_MS` for the image call,
-`AI_TIMEOUT_MS` for the review). Set the app's HTTP timeout for routes 15 and 16, and for suggestion start, to **11 minutes**, so the app does not
-give up before the server has answered. With an `Idempotency-Key`, a retry after an app-side timeout is still safe.
+**Timeouts.** Set the app's HTTP timeout for routes 15 and 16, and for suggestion start, next and refine, to
+**10 minutes**. The server always answers inside that: the image call is cut off at 9 minutes (`AI_IMAGE_TIMEOUT_MS`)
+and each text call at 4.5 (`AI_TIMEOUT_MS`; a suggestion turn makes at most two in a row), then 504 `UPSTREAM_TIMEOUT`. With an `Idempotency-Key`, a retry after an app-side timeout is still safe.
 
 ### 14. POST `/ai/attributes`
 
@@ -1072,7 +1072,7 @@ within 1 hour after it succeeded, gets the **same session** back (same `sessionI
 call). After the first one failed (refunded) or its result is gone (1 hour, or a server restart), 409
 `IDEMPOTENCY_KEY_USED`; send a new key. A start that ended in 402, 429 or `INSUFFICIENT_WARDROBE` charged
 nothing, so retrying it with the same key simply runs again. Make a new key per tap; reuse it only for a retry.
-A start can take a while (up to 4 tries plus one re-ask, each bounded by AI_TIMEOUT_MS, 10 minutes by default), so with a key a retry after an app-side
+A start can take a while (at most two model calls in a row, each cut off at 4.5 minutes), so with a key a retry after an app-side
 timeout is safe.
 
 - Response 200 `SuggestionResponse`, header `X-Credits-Balance` (balance after the session fee; for

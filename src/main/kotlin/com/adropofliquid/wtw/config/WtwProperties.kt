@@ -38,9 +38,9 @@ data class WtwProperties(
         val modelSuggest: String = "gemini-2.5-flash",
         val modelAttributes: String = "gemini-2.5-flash-lite",
         val modelImage: String = "gemini-3.1-flash-lite-image", // 2.5-flash-image was shut down 2026-10-02
-        val timeoutMs: Long = 600_000,
+        val timeoutMs: Long = 270_000,
         /** The image call (/ai/generate-image) alone; set per request. */
-        val imageTimeoutMs: Long = 600_000,
+        val imageTimeoutMs: Long = 540_000,
         /** Not prod only: `stub` (canned) or `local` (LocalModelGeminiClient). Prod always uses Vertex. */
         val mode: String = "stub",
         val localModelUrl: String = "http://localhost:11434",

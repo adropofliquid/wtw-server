@@ -59,8 +59,9 @@ wtw:
     model-suggest: ${GEMINI_MODEL_SUGGEST:gemini-2.5-flash}
     model-attributes: ${GEMINI_MODEL_ATTRIBUTES:gemini-2.5-flash-lite}
     model-image: ${GEMINI_MODEL_IMAGE:gemini-3.1-flash-lite-image}
-    timeout-ms: ${AI_TIMEOUT_MS:600000}
-    image-timeout-ms: ${AI_IMAGE_TIMEOUT_MS:600000}
+    # The app waits 10 min. Text: 4.5 min a call (a turn can make two: answer + one re-ask). Image: 9 min.
+    timeout-ms: ${AI_TIMEOUT_MS:270000}
+    image-timeout-ms: ${AI_IMAGE_TIMEOUT_MS:540000}
     mode: ${GEMINI_MODE:stub}
     local-model-url: ${LOCAL_MODEL_URL:http://localhost:11434}
     local-model-name: ${LOCAL_MODEL_NAME:qwen2.5vl:3b}
