@@ -24,7 +24,7 @@ All were accepted by the developer (ruling 9.3). Each is implemented as written 
 | 4.2 | No pull paging in v1 | `MirrorPullService`. Dry-run: largest user ≈ 7.5k rows / 3.1 MB, under the 5 MB bar |
 | 4.2 | Old items without `name`: app shows the category | app side; server returns `attributes` without `name` |
 | 4.3 | `/library` + compat starter-items + compat `/image/{id}` | `LibraryController` |
-| 4.5 | rembg `MAX_SIDE` env (600) | **Not done here**: rembg is another repo. Patch described in README "Deploy". Server works with 300px meanwhile. |
+| 4.5 | rembg `MAX_SIDE` env (600) | Done in `imgbg-remover` (2026-10-18): reads `MAX_SIDE`, default 600, never upscales. See D-6. |
 | 4.9 | Server does not delete the Firebase user or RevenueCat customer | `AccountService` |
 | 5.4 | Two buckets (private user, public library) | `ObjectStorage` (`Bucket.USER`, `Bucket.LIBRARY`) |
 | 5.7 | RevenueCat error = not premium, not cached, WARN | `EntitlementService` |
@@ -94,7 +94,7 @@ All were accepted by the developer (ruling 9.3). Each is implemented as written 
 - **C-1 Ledger never calls RevenueCat inside its transaction (S-1):** `LedgerService` resolves premium first (cache, then RevenueCat), then runs the DB work in a `TransactionTemplate` (REQUIRED, same as `@Transactional` before). Callers must not call the ledger from inside their own transaction.
 - **C-2 Unknown pack product is left unprocessed (S-2):** outcome `unmatched_product`, `processed_at` null, WARN with the product id. A later delivery (RevenueCat retry or dashboard resend) runs it again; after adding the product to `ledger.packs`, wait for the 5-minute config cache, then resend. Unknown uid / anonymous id stay `ignored` (not in scope).
 - **C-3 `Idempotency-Key` header on routes 15 and 16 (S-3):** header (not a body field), because route 15 is multipart. Ledger ref `idem:{key}`; same key while running → waits; after success → same result for 1 h (in memory, 64 MB cap); after a failure or a lost result → 409 `IDEMPOTENCY_KEY_USED` (never a free re-run, never a double charge). Image call timeout `AI_IMAGE_TIMEOUT_MS` set per request (now 10 min, see C-12; app timeout 11 min).
-- **C-4 `responseSchema` on `/ai/attributes` only:** built from the same lists as `normalize()` (keys 11–14 nullable). `normalize()` stays as the safety net. Not checked against real Gemini (zero spend); compile and stub only.
+- **C-4 `responseSchema` on `/ai/attributes` only:** built from the same lists as `normalize()` (keys 11–14 nullable). `normalize()` stays as the safety net. Not checked against real Gemini (zero spend); compile and stub only. Since checked live: `/ai/attributes` returned 200 with a valid object against real Gemini (2026-10-18).
 - **C-6 Upstream error text:** `"Gemini failed: attributes reply is not JSON"` (new `upstreamFailed(upstream, detail)`). Same code and status.
 - **C-7 Local rembg:** compose already had the `rembg` service; README now makes `REMBG_MODE=http` + `REMBG_URL=http://localhost:8000/rembg` the local path (Docker, or the remover's own venv). `MAX_SIDE` patch left as a developer step in README; `imgbg-remover/` untouched.
 - **C-8 Data copy stays in the jar:** README "Remove after cutover" lists the files and config to delete. `OLD_S3_*` stays (the Library seed uses it).
