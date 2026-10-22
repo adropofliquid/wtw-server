@@ -1191,6 +1191,13 @@ Both fields required.
 A read also writes the weekly grant if this is the first read or spend of the week, and the premium top-up if
 the user became premium mid-week.
 
+**After a purchase, send `?refresh=true`** (`GET /ledger?refresh=true`). The server remembers whether a user is
+premium for up to 15 minutes (`RC_CACHE_TTL`), and the RevenueCat webhook that clears that memory can arrive a few
+seconds after the purchase. `refresh=true` skips the remembered answer and asks RevenueCat now: once the SDK reports
+the purchase as successful, RevenueCat already knows, so this response says `"premium": true` and includes the
+premium top-up. Use it only after a purchase or a restore of purchases, not on every read. Any value other than
+`true`/`false` → 400 `VALIDATION`.
+
 Response 200, header `X-Credits-Balance`:
 
 ```json
