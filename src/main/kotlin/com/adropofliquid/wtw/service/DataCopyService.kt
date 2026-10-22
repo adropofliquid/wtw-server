@@ -305,7 +305,8 @@ class DataCopyService(
             val updated = o.updatedAt ?: o.createdAt ?: Instant.EPOCH
             val desired = MirrorOutfit(
                 id = o.id, userId = uid, name = o.name ?: "", createdByAi = o.createdByAi ?: false, occasion = o.occasion,
-                note = o.outfitReview, layout = "canvas", createdAt = o.createdAt ?: updated, updatedAt = updated, syncedAt = now,
+                note = o.outfitReview, layout = "canvas", archived = ex?.archived ?: false,
+                createdAt = o.createdAt ?: updated, updatedAt = updated, syncedAt = now,
             )
             report.pullBytes(uc, desired)
             when (lww(ex?.updatedAt, updated)) {

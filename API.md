@@ -313,6 +313,7 @@ Request (`Content-Type: application/json`), every field shown:
     "occasion": "Work",
     "note": "n",
     "layout": "canvas",
+    "archived": false,
     "pieces": [{"itemId": "doc-item-1", "x": 0.5, "y": 0.4, "scale": 1.0, "rotation": 0.0, "z": 1}]
   }],
   "planned": [{
@@ -367,6 +368,7 @@ the full row.
 | `createdByAi` | bool | | `false` |
 | `occasion`, `note` | string or null | | null |
 | `layout` | `"slots"` \| `"canvas"` or null | | null |
+| `archived` | bool | hidden by the user (a worn outfit can only be hidden, not deleted) | `false` |
 | `pieces` | array | each `itemId` required, ≤ 64, and **unique within the outfit** | `[]` |
 | `pieces[].x`, `.y` | float | | `0.5` |
 | `pieces[].scale` | float | | `1.0` |
@@ -566,6 +568,7 @@ Response 200 (real output, shortened only in `reasoning`):
     "occasion": "Work",
     "note": "n",
     "layout": "canvas",
+    "archived": false,
     "pieces": [
       {"itemId": "doc-item-2", "x": 0.5, "y": 0.5, "scale": 1.0, "rotation": 0.0, "z": 0},
       {"itemId": "doc-item-1", "x": 0.5, "y": 0.4, "scale": 1.0, "rotation": 0.0, "z": 1}
@@ -614,7 +617,7 @@ All six lists are always present (maybe empty).
 The links never expire. They change only when the image changes (`?v=`), so the app may store them and cache
 the images by URL. Fetch them with the auth header.
 
-**Outfit fields on pull.** As push. `pieces` is never null and is sorted by `z` (lowest first).
+**Outfit fields on pull.** As push. `archived` is never null. `pieces` is never null and is sorted by `z` (lowest first).
 
 **Planned / wear on pull.** As push. `planned.outfitId` may be null only on an old tombstone. `wear.status` may be
 null on a tombstone. `wear.itemIds` is never null.

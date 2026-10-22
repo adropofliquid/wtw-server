@@ -19,6 +19,8 @@ class MirrorOutfit(
     var occasion: String? = null,
     var note: String? = null,
     var layout: String? = null,
+    /** Hidden by the user (a worn outfit cannot be deleted, only hidden). */
+    var archived: Boolean = false,
     var createdAt: Instant = Instant.now(),
     var updatedAt: Instant = Instant.now(),
     var deletedAt: Instant? = null,

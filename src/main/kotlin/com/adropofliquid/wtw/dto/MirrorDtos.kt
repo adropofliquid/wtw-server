@@ -56,6 +56,7 @@ data class OutfitRow(
     val occasion: String? = null,
     val note: String? = null,
     val layout: String? = null,
+    val archived: Boolean? = null,
     val pieces: List<PieceRow?>? = null,
 )
 
@@ -153,6 +154,7 @@ data class OutfitDto(
     val occasion: String?,
     val note: String?,
     val layout: String?,
+    val archived: Boolean,
     val pieces: List<PieceDto>,
 )
 

@@ -180,6 +180,7 @@ class MirrorPushService(
                     e.occasion = row.occasion
                     e.note = row.note
                     e.layout = row.layout
+                    e.archived = row.archived ?: false
                     wanted = row.pieces.orEmpty().filterNotNull()
                 }
                 e.updatedAt = ms(updatedAt)

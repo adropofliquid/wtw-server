@@ -91,7 +91,7 @@ class MirrorPullService(
 
     private fun MirrorOutfit.toDto(ps: List<MirrorOutfitPiece>) = OutfitDto(
         id = id, name = name, createdByAi = createdByAi, createdAt = createdAt.ms(), updatedAt = updatedAt.ms(),
-        deletedAt = deletedAt?.ms(), occasion = occasion, note = note, layout = layout,
+        deletedAt = deletedAt?.ms(), occasion = occasion, note = note, layout = layout, archived = archived,
         pieces = ps.sortedBy { it.z }.map { PieceDto(it.itemId, it.x, it.y, it.scale, it.rotation, it.z) },
     )
 
